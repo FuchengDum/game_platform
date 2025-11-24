@@ -7,8 +7,8 @@ function Layout() {
   const isHome = location.pathname === '/';
 
   return (
-    <div className={isHome ? "min-h-screen flex flex-col" : "flex flex-col"}>
-      {/* 顶部导航栏 - 自适应版本 */}
+    <div className="min-h-screen grid grid-rows-[auto_1fr_auto]">
+      {/* 顶部导航栏 - 自适应版本 */} 
       <header className="bg-game-card shadow-lg sticky top-0 z-50">
         <div className={`container mx-auto px-4 ${isHome ? 'py-2.5' : 'py-2'}`}>
           <div className="flex items-center justify-between">
@@ -49,12 +49,12 @@ function Layout() {
       </header>
 
       {/* 主内容区 */}
-      <main className={isHome ? "flex-1" : ""}>
+      <main>
         <Outlet />
       </main>
 
       {/* 底部 - 自适应版本 */}
-      <footer className={`bg-game-card ${isHome ? 'py-3 mt-12' : 'py-2 mt-0'}`}>
+      <footer className={`bg-game-card ${isHome ? 'py-3' : 'py-2'}`}>
         <div className="container mx-auto px-4 text-center text-gray-400 text-xs">
           <p>© 2024 Phaser Game Hub · 基于 Phaser 3 和 React 构建 ·
             <a href="https://phaser.io" target="_blank" rel="noopener noreferrer"

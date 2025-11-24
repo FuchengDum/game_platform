@@ -83,7 +83,18 @@ export default class GameScene extends Phaser.Scene {
   hitPaddle(ball, paddle) {
     // 根据击球位置改变球的方向
     const diff = ball.x - paddle.x;
-    ball.body.setVelocityX(diff * 10);
+    const speed = 300; // 固定速度
+
+    // 计算新的速度向量，保持总速度恒定
+    const velocityX = diff * 10;
+    const velocityY = -Math.abs(ball.body.velocity.y) || -speed;
+
+    ball.body.setVelocity(velocityX, velocityY);
+
+    // 确保球向上反弹
+    if (ball.body.velocity.y > 0) {
+      ball.body.setVelocityY(-ball.body.velocity.y);
+    }
   }
 
   hitBrick(ball, brick) {
@@ -107,6 +118,18 @@ export default class GameScene extends Phaser.Scene {
 
     // 限制挡板范围
     this.paddle.x = Phaser.Math.Clamp(this.paddle.x, 50, 750);
+
+    // 安全检查：确保球始终有速度
+    if (this.ball && this.ball.body) {
+      const speed = Math.sqrt(
+        this.ball.body.velocity.x ** 2 + this.ball.body.velocity.y ** 2
+      );
+
+      // 如果球速度过低，重置速度
+      if (speed < 100) {
+        this.ball.body.setVelocity(200, -200);
+      }
+    }
 
     // 检查球是否掉落
     if (this.ball.y > 600) {

@@ -14,12 +14,65 @@ function GameContainer() {
   const [isPaused, setIsPaused] = useState(false);
   const updateGameRecord = useGameStore((state) => state.updateGameRecord);
 
+  // 先加载游戏配置和类
   useEffect(() => {
-    // 清理函数 - 彻底清除旧游戏
-    const cleanupOldGame = () => {
-      console.log('🧹 Cleaning up old game...');
+    const config = getGameById(gameId);
+    if (!config) {
+      setError('游戏不存在');
+      setIsLoading(false);
+      return;
+    }
+    setGameConfig(config);
+    setIsLoading(false); // 立即设置为 false，让 DOM 渲染
+  }, [gameId]);
 
-      // 销毁游戏实例
+  // 等待容器渲染后再初始化游戏
+  useEffect(() => {
+    if (isLoading || !gameConfig || !containerRef.current) {
+      return;
+    }
+
+    let mounted = true;
+
+    const initGame = async () => {
+      try {
+        console.log('🎮 Loading game:', gameId);
+        const GameClass = await loadGame(gameId);
+        console.log('✅ Game class loaded:', GameClass);
+
+        if (!GameClass || !mounted) {
+          return;
+        }
+
+        // 游戏结束回调
+        const handleGameOver = (score) => {
+          console.log('🏁 Game over, score:', score);
+          updateGameRecord(gameId, score);
+          setTimeout(() => {
+            navigate('/');
+          }, 1000);
+        };
+
+        console.log('✅ Container found:', containerRef.current);
+        console.log('🎯 Creating game instance...');
+
+        gameRef.current = new GameClass('phaser-game', handleGameOver);
+        gameRef.current.start();
+
+        console.log('✅ Game started successfully');
+      } catch (err) {
+        console.error('❌ 游戏加载失败:', err);
+        if (mounted) {
+          setError('游戏加载失败: ' + err.message);
+        }
+      }
+    };
+
+    initGame();
+
+    return () => {
+      mounted = false;
+      console.log('🔄 Cleaning up game...');
       if (gameRef.current) {
         try {
           gameRef.current.destroy();
@@ -28,74 +81,8 @@ function GameContainer() {
         }
         gameRef.current = null;
       }
-
-      // 清空 DOM 容器
-      const container = document.getElementById('phaser-game');
-      if (container) {
-        while (container.firstChild) {
-          container.removeChild(container.firstChild);
-        }
-        console.log('✅ Container cleaned');
-      }
     };
-
-    // 先清理可能存在的旧游戏
-    cleanupOldGame();
-
-    // 加载游戏配置
-    const config = getGameById(gameId);
-    if (!config) {
-      setError('游戏不存在');
-      setIsLoading(false);
-      return;
-    }
-    setGameConfig(config);
-
-    // 动态加载游戏类
-    const initGame = async () => {
-      try {
-        console.log('🎮 Loading game:', gameId);
-        const GameClass = await loadGame(gameId);
-        console.log('✅ Game class loaded:', GameClass);
-
-        if (!GameClass) {
-          throw new Error('无法加载游戏');
-        }
-
-        // 游戏结束回调
-        const handleGameOver = (score) => {
-          console.log('🏁 Game over, score:', score);
-          updateGameRecord(gameId, score);
-          // 延迟返回，让玩家看到最终分数
-          setTimeout(() => {
-            navigate('/');
-          }, 1000);
-        };
-
-        // 再次确保容器干净
-        cleanupOldGame();
-
-        // 创建游戏实例
-        console.log('🎯 Creating game instance...');
-        gameRef.current = new GameClass('phaser-game', handleGameOver);
-        gameRef.current.start();
-        console.log('✅ Game started successfully');
-        setIsLoading(false);
-      } catch (err) {
-        console.error('❌ 游戏加载失败:', err);
-        setError('游戏加载失败: ' + err.message);
-        setIsLoading(false);
-      }
-    };
-
-    initGame();
-
-    // 清理函数 - 组件卸载时执行
-    return () => {
-      console.log('🔄 Component unmounting, cleaning up...');
-      cleanupOldGame();
-    };
-  }, [gameId, navigate, updateGameRecord]);
+  }, [gameId, gameConfig, isLoading, navigate, updateGameRecord]);
 
   const handlePauseResume = () => {
     if (!gameRef.current) return;
@@ -143,9 +130,9 @@ function GameContainer() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-4 max-w-7xl">
+    <div className="w-full max-w-4xl mx-auto px-4 py-4">
       {/* 游戏容器 - 居中显示 */}
-      <div className="flex flex-col items-center gap-4">
+      <div className="space-y-4">
         {/* 游戏信息和控制栏 */}
         <div className="w-full max-w-4xl bg-game-card rounded-lg px-4 py-2.5 flex items-center justify-between flex-wrap gap-3">
           {/* 左侧：游戏信息 */}
