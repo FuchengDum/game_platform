@@ -1,0 +1,11 @@
+<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bodyGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0ea5e9;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0284c7;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="16" height="16" rx="2" fill="url(#bodyGradient)" stroke="#0a7ea4" stroke-width="1"/>
+  <!-- 身体纹理 -->
+  <circle cx="10" cy="10" r="2" fill="#48dbfb" opacity="0.5"/>
+</svg>
