@@ -1,0 +1,77 @@
+<svg width="400" height="300" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景 -->
+  <rect width="400" height="300" fill="#0f172a"/>
+
+  <!-- 砖块 -->
+  <g id="bricks">
+    <!-- 第一排 - 红色砖块 -->
+    <rect x="40" y="40" width="60" height="20" rx="2" fill="#ff6b6b" stroke="#ff5252" stroke-width="1"/>
+    <rect x="110" y="40" width="60" height="20" rx="2" fill="#ff6b6b" stroke="#ff5252" stroke-width="1"/>
+    <rect x="180" y="40" width="60" height="20" rx="2" fill="#ff6b6b" stroke="#ff5252" stroke-width="1"/>
+    <rect x="250" y="40" width="60" height="20" rx="2" fill="#ff6b6b" stroke="#ff5252" stroke-width="1"/>
+    <rect x="320" y="40" width="60" height="20" rx="2" fill="#ff6b6b" stroke="#ff5252" stroke-width="1"/>
+
+    <!-- 第二排 - 橙色砖块 -->
+    <rect x="40" y="70" width="60" height="20" rx="2" fill="#feca57" stroke="#ff9f43" stroke-width="1"/>
+    <rect x="110" y="70" width="60" height="20" rx="2" fill="#feca57" stroke="#ff9f43" stroke-width="1"/>
+    <rect x="180" y="70" width="60" height="20" rx="2" fill="#feca57" stroke="#ff9f43" stroke-width="1"/>
+    <rect x="250" y="70" width="60" height="20" rx="2" fill="#feca57" stroke="#ff9f43" stroke-width="1"/>
+    <rect x="320" y="70" width="60" height="20" rx="2" fill="#feca57" stroke="#ff9f43" stroke-width="1"/>
+
+    <!-- 第三排 - 黄色砖块 -->
+    <rect x="40" y="100" width="60" height="20" rx="2" fill="#48dbfb" stroke="#0abde3" stroke-width="1"/>
+    <rect x="110" y="100" width="60" height="20" rx="2" fill="#48dbfb" stroke="#0abde3" stroke-width="1"/>
+    <rect x="180" y="100" width="60" height="20" rx="2" fill="#48dbfb" stroke="#0abde3" stroke-width="1"/>
+    <rect x="250" y="100" width="60" height="20" rx="2" fill="#48dbfb" stroke="#0abde3" stroke-width="1"/>
+    <rect x="320" y="100" width="60" height="20" rx="2" fill="#48dbfb" stroke="#0abde3" stroke-width="1"/>
+  </g>
+
+  <!-- 球 -->
+  <g id="ball">
+    <circle cx="200" cy="180" r="10" fill="#ffffff">
+      <!-- 球的运动轨迹 -->
+      <animateMotion dur="3s" repeatCount="indefinite">
+        <mpath href="#ballPath"/>
+      </animateMotion>
+    </circle>
+    <circle cx="200" cy="180" r="6" fill="#f0f9ff">
+      <animateMotion dur="3s" repeatCount="indefinite">
+        <mpath href="#ballPath"/>
+      </animateMotion>
+    </circle>
+    <circle cx="200" cy="180" r="3" fill="#7dd3fc">
+      <animateMotion dur="3s" repeatCount="indefinite">
+        <mpath href="#ballPath"/>
+      </animateMotion>
+    </circle>
+  </g>
+
+  <!-- 球的运动路径 -->
+  <path id="ballPath" d="M 200 180 Q 350 150 320 100 Q 280 60 210 60 Q 140 60 100 100 Q 70 150 120 180 Q 170 200 200 180" fill="none"/>
+
+  <!-- 挡板 -->
+  <rect x="160" y="250" width="80" height="15" rx="7" fill="#0ea5e9" stroke="#0284c7" stroke-width="2">
+    <!-- 挡板移动动画 -->
+    <animate attributeName="x" values="160;240;160" dur="4s" repeatCount="indefinite"/>
+  </rect>
+
+  <!-- 粒子效果 -->
+  <g id="particles">
+    <circle cx="200" cy="60" r="2" fill="#ffd700" opacity="0">
+      <animate attributeName="opacity" values="0;1;0" dur="1s" repeatCount="indefinite"/>
+      <animate attributeName="cy" values="60;40;20" dur="1s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="250" cy="70" r="2" fill="#ffd700" opacity="0">
+      <animate attributeName="opacity" values="0;1;0" dur="1s" begin="0.3s" repeatCount="indefinite"/>
+      <animate attributeName="cy" values="70;50;30" dur="1s" begin="0.3s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="150" cy="70" r="2" fill="#ffd700" opacity="0">
+      <animate attributeName="opacity" values="0;1;0" dur="1s" begin="0.6s" repeatCount="indefinite"/>
+      <animate attributeName="cy" values="70;50;30" dur="1s" begin="0.6s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <!-- 游戏标题 -->
+  <text x="200" y="260" text-anchor="middle" fill="#0ea5e9" font-family="Arial, sans-serif" font-size="28" font-weight="bold">打砖块</text>
+  <text x="200" y="280" text-anchor="middle" fill="#999" font-family="Arial, sans-serif" font-size="14">Breakout Game</text>
+</svg>

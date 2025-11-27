@@ -7,7 +7,7 @@ export default {
   icon: '🐍',
   category: 'arcade',
   difficulty: '中等',
-  thumbnail: 'https://via.placeholder.com/400x300/48dbfb/ffffff?text=Snake',
+  thumbnail: '/src/games/snake/assets/images/thumbnail.svg',
   controls: {
     desktop: '方向键控制',
     mobile: '滑动屏幕控制方向'

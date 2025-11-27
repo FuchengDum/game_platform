@@ -14,19 +14,19 @@ export default class GameScene extends Phaser.Scene {
     this.nextDirection = 'RIGHT';
     this.food = null;
     this.moveTime = 0;
-    this.moveDelay = 150; // 移动间隔（毫秒）
-    this.baseMoveDelay = 150; // 基础移动延迟
+    this.moveDelay = 120; // 移动间隔（毫秒）- 初始为熟练速度
+    this.baseMoveDelay = 120; // 基础移动延迟
     this.foodCount = 0; // 吃到的食物数量
-    this.speedLevel = 1; // 当前速度等级
+    this.speedLevel = 1; // 当前速度等级 - 初始为熟练
 
     // 速度调整配置
     this.speedConfig = {
-      // 每5个食物升一级
-      foodPerLevel: 5,
+      // 每3个食物升一级 - 更快的升级
+      foodPerLevel: 3,
       // 速度等级对应的延迟时间
-      levelDelays: [150, 140, 130, 120, 110, 100, 90, 80, 70, 60, 50],
+      levelDelays: [120, 110, 100, 90, 80, 70],
       // 速度等级名称
-      levelNames: ['新手', '入门', '普通', '熟练', '优秀', '专家', '大师', '王者', '传奇', '神话', '极限']
+      levelNames: ['熟练', '优秀', '专家', '大师', '王者', '传奇']
     };
 
     // 动画相关
@@ -91,7 +91,7 @@ export default class GameScene extends Phaser.Scene {
     });
 
     // 速度显示
-    this.speedText = this.add.text(16, 45, '速度: 新手 (1级)', {
+    this.speedText = this.add.text(16, 45, '速度: 熟练 (1级)', {
       fontSize: '18px',
       fill: '#48dbfb'
     });

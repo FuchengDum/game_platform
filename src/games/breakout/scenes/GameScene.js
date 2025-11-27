@@ -6,6 +6,10 @@ export default class GameScene extends Phaser.Scene {
     this.onGameOver = onGameOver;
     this.score = 0;
     this.lives = 3;
+
+    // 轨迹效果相关
+    this.ballTrail = [];
+    this.maxTrailLength = 10;
   }
 
   create() {
@@ -18,8 +22,13 @@ export default class GameScene extends Phaser.Scene {
     this.paddle.body.setImmovable(true);
     this.paddle.body.setCollideWorldBounds(true);
 
-    // 创建球
-    this.ball = this.add.circle(400, 500, 10, 0xffffff);
+    // 创建增强的球
+    this.ball = this.add.circle(400, 500, 12, 0xffffff);
+
+    // 添加球的内部层次设计
+    this.ballInner = this.add.circle(400, 500, 8, 0xf0f9ff); // 浅蓝色内圈
+    this.ballCenter = this.add.circle(400, 500, 4, 0x7dd3fc); // 中心高光
+
     this.physics.add.existing(this.ball);
     this.ball.body.setCollideWorldBounds(true);
     this.ball.body.setBounce(1, 1);
@@ -83,11 +92,21 @@ export default class GameScene extends Phaser.Scene {
   hitPaddle(ball, paddle) {
     // 根据击球位置改变球的方向
     const diff = ball.x - paddle.x;
-    const speed = 300; // 固定速度
+    const maxSpeed = 300; // 最大速度
+    const minSpeed = 200; // 最小速度
 
-    // 计算新的速度向量，保持总速度恒定
-    const velocityX = diff * 10;
-    const velocityY = -Math.abs(ball.body.velocity.y) || -speed;
+    // 计算击球位置的比例 (-1 到 1)
+    let hitPosition = diff / (paddle.width / 2);
+    hitPosition = Phaser.Math.Clamp(hitPosition, -1, 1);
+
+    // 基于击球位置计算角度，但限制在合理范围内
+    const maxAngle = Math.PI / 3; // 60度最大角度
+    const angle = hitPosition * maxAngle;
+
+    // 计算新的速度向量，确保速度在合理范围内
+    const speed = Math.max(minSpeed, maxSpeed);
+    const velocityX = Math.sin(angle) * speed;
+    const velocityY = -Math.abs(Math.cos(angle) * speed);
 
     ball.body.setVelocity(velocityX, velocityY);
 
@@ -98,6 +117,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   hitBrick(ball, brick) {
+    // 创建碰撞效果
+    this.createCollisionEffect(brick.x, brick.y);
+
     brick.destroy();
     this.score += 10;
     this.scoreText.setText('分数: ' + this.score);
@@ -108,7 +130,25 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  createCollisionEffect(x, y) {
+    // 创建碰撞粒子效果
+    const particles = this.add.particles(x, y, {
+      frame: ['circle', 'square'],
+      scale: { start: 0.5, end: 0 },
+      speed: { min: 50, max: 150 },
+      lifespan: 800,
+      quantity: 8,
+      tint: 0xffd700
+    });
+
+    // 发射粒子
+    particles.explode();
+  }
+
   update() {
+    // 更新球轨迹
+    this.updateBallTrail();
+
     // 键盘控制挡板
     if (this.cursors.left.isDown) {
       this.paddle.x -= 8;
@@ -121,6 +161,14 @@ export default class GameScene extends Phaser.Scene {
 
     // 安全检查：确保球始终有速度
     if (this.ball && this.ball.body) {
+      // 同步内圈和中心高光位置
+      if (this.ballInner && this.ballCenter) {
+        this.ballInner.x = this.ball.x;
+        this.ballInner.y = this.ball.y;
+        this.ballCenter.x = this.ball.x;
+        this.ballCenter.y = this.ball.y;
+      }
+
       const speed = Math.sqrt(
         this.ball.body.velocity.x ** 2 + this.ball.body.velocity.y ** 2
       );
@@ -147,6 +195,66 @@ export default class GameScene extends Phaser.Scene {
   resetBall() {
     this.ball.setPosition(400, 500);
     this.ball.body.setVelocity(200, -200);
+
+    // 清除轨迹
+    this.clearBallTrail();
+
+    // 重置内圈位置
+    if (this.ballInner && this.ballCenter) {
+      this.ballInner.x = this.ball.x;
+      this.ballInner.y = this.ball.y;
+      this.ballCenter.x = this.ball.x;
+      this.ballCenter.y = this.ball.y;
+    }
+  }
+
+  updateBallTrail() {
+    if (!this.ball) return;
+
+    // 添加新的轨迹点
+    this.ballTrail.push({
+      x: this.ball.x,
+      y: this.ball.y,
+      alpha: 1
+    });
+
+    // 限制轨迹长度
+    if (this.ballTrail.length > this.maxTrailLength) {
+      this.ballTrail.shift();
+    }
+
+    // 更新轨迹透明度
+    this.ballTrail.forEach((point, index) => {
+      point.alpha = (index + 1) / this.ballTrail.length * 0.5;
+    });
+
+    // 渲染轨迹
+    this.renderBallTrail();
+  }
+
+  renderBallTrail() {
+    // 清除之前的轨迹
+    if (this.trailGraphics) {
+      this.trailGraphics.clear();
+    } else {
+      this.trailGraphics = this.add.graphics();
+    }
+
+    // 绘制轨迹
+    this.ballTrail.forEach((point, index) => {
+      if (index > 0) { // 不绘制第一个点（球本体）
+        const size = 2 + (index / this.ballTrail.length) * 6;
+        this.trailGraphics.fillStyle(0x7dd3fc, point.alpha * 0.3);
+        this.trailGraphics.fillCircle(point.x, point.y, size);
+      }
+    });
+  }
+
+  clearBallTrail() {
+    this.ballTrail = [];
+    if (this.trailGraphics) {
+      this.trailGraphics.clear();
+    }
   }
 
   gameWin() {

@@ -7,7 +7,7 @@ export default {
   icon: '🧱',
   category: 'arcade',
   difficulty: '简单',
-  thumbnail: 'https://via.placeholder.com/400x300/0ea5e9/ffffff?text=Breakout',
+  thumbnail: '/src/games/breakout/assets/images/thumbnail.svg',
   controls: {
     desktop: '鼠标移动或左右方向键',
     mobile: '触摸屏幕移动挡板'
