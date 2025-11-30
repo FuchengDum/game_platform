@@ -1,4 +1,8 @@
 import Phaser from 'phaser';
+import { FoodManager } from '../entities/FoodManager.js';
+import { EffectManager } from '../systems/EffectManager.js';
+import { SoundManager } from '../systems/SoundManager.js';
+import { EffectsUI } from '../systems/EffectsUI.js';
 
 const GRID_SIZE = 20;
 const GRID_WIDTH = 30;
@@ -36,6 +40,16 @@ export default class GameScene extends Phaser.Scene {
     this.isBlinking = false;
 
     // this.snakeSprites = []; // 我们将使用更简单的渲染方法
+
+    // 初始化道具系统
+    this.foodManager = null;
+    this.effectManager = new EffectManager();
+    this.soundManager = null;
+
+    // UI元素
+    this.effectsDisplay = null;
+    this.progressBarContainer = null;
+    this.effectsUI = null;
   }
 
   preload() {
@@ -52,8 +66,21 @@ export default class GameScene extends Phaser.Scene {
 
     // 蛇将在render方法中绘制
 
-    // 创建食物
-    this.spawnFood();
+    // 创建食物管理器并生成第一个食物
+    this.foodManager = new FoodManager(this);
+    this.foodManager.spawnFood(this.snake);
+
+    // 初始化音效管理器
+    this.soundManager = new SoundManager(this);
+
+    // 初始化效果管理器回调
+    this.setupEffectCallbacks();
+
+    // 创建效果显示UI
+    this.createEffectsUI();
+
+    // 创建高级效果UI
+    this.effectsUI = new EffectsUI(this, 16, 100);
 
     // 键盘输入
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -156,6 +183,14 @@ export default class GameScene extends Phaser.Scene {
     this.foodAnimationTime += 16;
     this.eyeBlinkTime += 16;
 
+    // 更新效果管理器
+    this.effectManager.update(16);
+
+    // 更新食物管理器
+    if (this.foodManager) {
+      this.foodManager.update(16);
+    }
+
     // 处理眨眼动画
     if (this.eyeBlinkTime > 3000 + Math.random() * 2000) { // 3-5秒眨眼一次
       this.isBlinking = true;
@@ -177,10 +212,14 @@ export default class GameScene extends Phaser.Scene {
       this.nextDirection = 'DOWN';
     }
 
-    // 移动蛇
+    // 移动蛇 - 考虑效果影响的移动延迟
     if (time >= this.moveTime) {
       this.moveSnake();
-      this.moveTime = time + this.moveDelay;
+
+      // 计算动态移动延迟
+      const speedMultiplier = this.effectManager.getSpeedMultiplier();
+      this.currentMoveDelay = this.baseMoveDelay / speedMultiplier;
+      this.moveTime = time + this.currentMoveDelay;
     }
 
     // 渲染
@@ -217,18 +256,43 @@ export default class GameScene extends Phaser.Scene {
     // 添加新头部
     this.snake.unshift(head);
 
-    // 检查是否吃到食物
-    if (head.x === this.food.x && head.y === this.food.y) {
-      this.score += 10;
-      this.scoreText.setText('分数: ' + this.score);
-      this.spawnFood();
+    // 检查是否吃到食物/道具
+    const foodCollision = this.foodManager ? this.foodManager.checkCollision(head) : null;
+    if (foodCollision) {
+      // 处理食物/道具效果
+      const consumeResult = this.foodManager.consumeFood();
 
-      // 更新食物计数
-      this.foodCount++;
-      this.foodText.setText(`食物: ${this.foodCount}`);
+      if (consumeResult) {
+        // 应用效果
+        if (consumeResult.effect && consumeResult.effect.type !== 'none') {
+          this.effectManager.addEffect(
+            consumeResult.effect.type,
+            consumeResult.effect.duration,
+            {
+              [consumeResult.effect.type.includes('speed') ? 'speedMultiplier' : 'scoreMultiplier']: consumeResult.effect.value
+            },
+            consumeResult.effect.name
+          );
+        }
 
-      // 检查是否需要提升速度等级
-      this.updateSpeed();
+        // 计算分数（考虑倍数）
+        const scoreGain = consumeResult.score * this.effectManager.getScoreMultiplier();
+        this.score += scoreGain;
+        this.scoreText.setText('分数: ' + this.score);
+
+        // 更新食物计数
+        this.foodCount++;
+        this.foodText.setText(`食物: ${this.foodCount}`);
+
+        // 更新效果显示
+        this.updateEffectsDisplay();
+
+        // 检查是否需要提升速度等级
+        this.updateSpeed();
+
+        // 生成新食物
+        this.foodManager.spawnFood(this.snake);
+      }
     } else {
       // 移除尾部
       this.snake.pop();
@@ -251,24 +315,189 @@ export default class GameScene extends Phaser.Scene {
     return false;
   }
 
-  spawnFood() {
-    let validPosition = false;
-    let foodX, foodY;
+  /**
+   * 设置效果管理器回调
+   */
+  setupEffectCallbacks() {
+    // 速度效果回调
+    this.effectManager.setEffectCallback('speed_up', (event, data) => {
+      if (event === 'start') {
+        console.log('⚡ 加速效果开始');
+        this.showSpeedNotification('⚡ 速度提升！');
 
-    while (!validPosition) {
-      foodX = Phaser.Math.Between(0, GRID_WIDTH - 1);
-      foodY = Phaser.Math.Between(0, GRID_HEIGHT - 1);
+        // 显示效果激活UI
+        if (this.effectsUI) {
+          this.effectsUI.showEffectActivated('speed_up', '速度提升');
+        }
+      } else if (event === 'end') {
+        console.log('⚡ 加速效果结束');
+        this.showSpeedNotification('速度恢复');
 
-      validPosition = true;
-      for (let segment of this.snake) {
-        if (segment.x === foodX && segment.y === foodY) {
-          validPosition = false;
-          break;
+        // 播放效果结束音效
+        if (this.soundManager) {
+          this.soundManager.playEffectEndSound();
+        }
+
+        // 显示效果结束UI
+        if (this.effectsUI) {
+          this.effectsUI.showEffectEnded('speed_up', '速度提升');
         }
       }
+    });
+
+    // 减速效果回调
+    this.effectManager.setEffectCallback('slow_down', (event, data) => {
+      if (event === 'start') {
+        console.log('💧 减速效果开始');
+        this.showSpeedNotification('💧 速度减缓！');
+
+        // 显示效果激活UI
+        if (this.effectsUI) {
+          this.effectsUI.showEffectActivated('slow_down', '速度减缓');
+        }
+      } else if (event === 'end') {
+        console.log('💧 减速效果结束');
+        this.showSpeedNotification('速度恢复');
+
+        // 播放效果结束音效
+        if (this.soundManager) {
+          this.soundManager.playEffectEndSound();
+        }
+
+        // 显示效果结束UI
+        if (this.effectsUI) {
+          this.effectsUI.showEffectEnded('slow_down', '速度减缓');
+        }
+      }
+    });
+
+    // 双倍积分回调
+    this.effectManager.setEffectCallback('double_score', (event, data) => {
+      if (event === 'start') {
+        console.log('⭐ 双倍积分开始');
+        this.showScoreNotification('⭐ 双倍积分启动！');
+
+        // 显示效果激活UI
+        if (this.effectsUI) {
+          this.effectsUI.showEffectActivated('double_score', '双倍积分');
+        }
+      } else if (event === 'end') {
+        console.log('⭐ 双倍积分结束');
+        this.showScoreNotification('双倍积分结束');
+
+        // 播放效果结束音效
+        if (this.soundManager) {
+          this.soundManager.playEffectEndSound();
+        }
+
+        // 显示效果结束UI
+        if (this.effectsUI) {
+          this.effectsUI.showEffectEnded('double_score', '双倍积分');
+        }
+      }
+    });
+  }
+
+  /**
+   * 创建效果显示UI
+   */
+  createEffectsUI() {
+    // 效果状态显示
+    this.effectsDisplay = this.add.text(16, 100, '', {
+      fontSize: '16px',
+      fill: '#fbbf24',
+      backgroundColor: 'rgba(0,0,0,0.7)',
+      padding: { x: 10, y: 5 }
+    }).setAlpha(0.9);
+
+    // 进度条容器
+    this.progressBarContainer = this.add.graphics();
+  }
+
+  /**
+   * 显示速度通知
+   */
+  showSpeedNotification(text) {
+    const notification = this.add.text(300, 200, text, {
+      fontSize: '24px',
+      fill: '#3b82f6',
+      backgroundColor: 'rgba(0,0,0,0.8)',
+      padding: { x: 10, y: 5 }
+    }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: notification,
+      alpha: 0,
+      y: 180,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => notification.destroy()
+    });
+  }
+
+  /**
+   * 显示分数通知
+   */
+  showScoreNotification(text) {
+    const notification = this.add.text(300, 200, text, {
+      fontSize: '24px',
+      fill: '#f59e0b',
+      backgroundColor: 'rgba(0,0,0,0.8)',
+      padding: { x: 10, y: 5 }
+    }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: notification,
+      alpha: 0,
+      y: 180,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => notification.destroy()
+    });
+  }
+
+  /**
+   * 更新效果显示
+   */
+  updateEffectsDisplay() {
+    if (this.effectsUI) {
+      this.effectsUI.update(this.effectManager);
     }
 
-    this.food = { x: foodX, y: foodY };
+    // 保持旧的后备显示方式
+    if (this.effectsDisplay) {
+      const effectsText = this.effectManager.formatEffectsDisplay();
+      this.effectsDisplay.setText(effectsText);
+    }
+  }
+
+  /**
+   * 渲染进度条
+   */
+  renderProgressBars() {
+    if (!this.progressBarContainer) return;
+
+    this.progressBarContainer.clear();
+
+    const progressBars = this.effectManager.getProgressBarsData();
+    let yOffset = 130;
+
+    for (const bar of progressBars) {
+      const barWidth = 80;
+      const barHeight = 4;
+      const x = 16;
+
+      // 背景
+      this.progressBarContainer.fillStyle(0x374151, 1);
+      this.progressBarContainer.fillRect(x, yOffset, barWidth, barHeight);
+
+      // 进度
+      const progressWidth = barWidth * (1 - (bar.remaining / 6000)); // 假设最大6秒
+      this.progressBarContainer.fillStyle(bar.color, 1);
+      this.progressBarContainer.fillRect(x, yOffset, progressWidth, barHeight);
+
+      yOffset += 8;
+    }
   }
 
   render() {
@@ -366,52 +595,10 @@ export default class GameScene extends Phaser.Scene {
       }
     });
 
-    // 绘制可爱的食物，带浮动动画
-    const foodCenterX = this.food.x * GRID_SIZE + GRID_SIZE / 2;
-    const foodCenterY = this.food.y * GRID_SIZE + GRID_SIZE / 2;
-
-    // 浮动效果
-    const floatOffset = Math.sin(this.foodAnimationTime * 0.003) * 2;
-    const foodY = foodCenterY + floatOffset;
-
-    // 食物主体 - 苹果形状
-    this.graphics.fillStyle(0xf87171, 1); // 红色苹果
-    this.graphics.fillCircle(foodCenterX, foodY, GRID_SIZE / 2 - 2);
-
-    // 苹果叶子 - 增加可爱感
-    this.graphics.fillStyle(0x34d399, 1); // 绿色叶子
-    this.graphics.fillEllipse(foodCenterX, foodY - 6, 3, 2);
-
-    // 苹果梗
-    this.graphics.lineStyle(1, 0x92400e, 1); // 棕色梗
-    this.graphics.beginPath();
-    this.graphics.moveTo(foodCenterX, foodY - 6);
-    this.graphics.lineTo(foodCenterX, foodY - 8);
-    this.graphics.strokePath();
-
-    // 食物高光 - 更立体
-    this.graphics.fillStyle(0xffffff, 0.6);
-    this.graphics.fillEllipse(foodCenterX - 3, foodY - 3, 4, 3);
-
-    // 可爱的小脸 - 让食物也有表情
-    this.graphics.fillStyle(0x1e293b, 1); // 深色眼睛
-    this.graphics.fillCircle(foodCenterX - 3, foodY, 1);
-    this.graphics.fillCircle(foodCenterX + 3, foodY, 1);
-
-    // 微笑嘴巴
-    this.graphics.lineStyle(1, 0x1e293b, 1);
-    this.graphics.beginPath();
-    this.graphics.arc(foodCenterX, foodY + 1, 2, 0.2, Math.PI - 0.2);
-    this.graphics.strokePath();
-
-    // 腮红 - 增加可爱感
-    this.graphics.fillStyle(0xfbbf24, 0.3); // 金黄色腮红
-    this.graphics.fillEllipse(foodCenterX - 4, foodY + 2, 2, 1);
-    this.graphics.fillEllipse(foodCenterX + 4, foodY + 2, 2, 1);
-
-    // 边框
-    this.graphics.lineStyle(1, 0xdc2626, 0.8);
-    this.graphics.strokeCircle(foodCenterX, foodY, GRID_SIZE / 2 - 2);
+    // 绘制食物/道具
+    if (this.foodManager && this.foodManager.getCurrentFood()) {
+      this.foodManager.render(this.graphics);
+    }
   }
 
   updateSpeed() {
@@ -500,6 +687,11 @@ export default class GameScene extends Phaser.Scene {
 
   gameOver() {
     this.scene.pause();
+
+    // 播放游戏结束音效
+    if (this.soundManager) {
+      this.soundManager.playGameOverSound();
+    }
 
     const gameOverText = this.add.text(300, 250, '游戏结束', {
       fontSize: '48px',
