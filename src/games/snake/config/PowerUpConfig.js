@@ -11,10 +11,10 @@ export const POWER_UP_TYPES = {
     borderColor: 0xdc2626,     // 深红色边框
     score: 10,
     probability: 0.6,          // 60% 概率
-    duration: 0,               // 立即效果
+    duration: 2000,             // 2秒轻量级效果，用于视觉反馈
     icon: '🍎',
     sound: 'normal',
-    effect: 'none'
+    effect: 'normal_score_boost'  // 轻量级得分增强效果
   },
 
   SPEED_UP: {

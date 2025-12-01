@@ -73,17 +73,29 @@ export class PowerUp {
     // 根据道具类型选择特效强度
     const effectIntensity = this.getEffectIntensity();
 
-    // 严格控制视觉效果 - 只对 speed_up 和 slow_down 启用基本效果
-    if (this.type === 'speed_up' || this.type === 'slow_down') {
-      // 仅添加轻微的屏幕震动效果
-      this.addScreenShake(effectIntensity * 0.5); // 减弱震动
+    console.log(`🎯 道具 ${this.type} 视觉反馈，强度: ${effectIntensity}`);
 
-      // 创建非常少量和快速的粒子效果
-      this.createMinimalParticleEffect(centerX, centerY, color, effectIntensity);
+    // 使用优化粒子池系统创建极简粒子效果
+    if (this.scene.createOptimizedParticles && (this.type === 'speed_up' || this.type === 'slow_down')) {
+      // 进一步减弱粒子效果以避免渲染负担和闪烁
+      this.scene.createOptimizedParticles(centerX, centerY, color, effectIntensity * 0.3, 'circle'); // 从0.6减弱到0.3
+
+      // 完全移除屏幕震动效果以避免闪烁
+      // this.addScreenShake(effectIntensity * 0.4); // 注释掉震动效果
+      console.log(`🎯 特殊道具 ${this.type} 禁用屏幕震动以避免界面闪烁`);
+    } else if (this.type === 'double_score') {
+      // 双倍积分道具也使用减弱的粒子效果
+      if (this.scene.createOptimizedParticles) {
+        this.scene.createOptimizedParticles(centerX, centerY, color, effectIntensity * 0.4, 'circle'); // 从0.8减弱到0.4
+      }
     }
 
-    // 所有道具都显示简化的分数提示
-    this.showMinimalScorePopup(centerX, centerY, score, color);
+    // 只有普通食物显示分数提示，特殊道具只显示粒子效果避免遮挡
+    if (this.type === 'normal') {
+      this.showMinimalScorePopup(centerX, centerY, score, color);
+    } else {
+      console.log(`🎯 特殊道具 ${this.type} 仅显示粒子效果，避免文字遮挡`);
+    }
   }
 
   /**
@@ -225,31 +237,36 @@ export class PowerUp {
   }
 
   /**
-   * 创建粒子爆炸效果
+   * 创建粒子爆炸效果（使用粒子池优化）
    */
   createParticleExplosion(x, y, color, intensity) {
     // 如果对象已被销毁，直接返回
     if (this.destroyed) return [];
 
-    // 优化粒子数量 - 根据道具类型调整
-    const baseParticleCount = this.type === 'normal' ? 4 : 6;  // 进一步减少粒子数
-    const particleCount = Math.floor(baseParticleCount * intensity);
+    // 使用场景的优化粒子系统
+    if (this.scene.createOptimizedParticles) {
+      console.log('🎯 使用优化粒子池系统创建粒子效果');
+      return this.scene.createOptimizedParticles(x, y, color, intensity, 'circle');
+    }
+
+    // 备用方案：直接创建少量粒子
+    console.warn('⚠️ 粒子池系统不可用，使用备用方案');
+    const particleCount = Math.min(3, Math.max(2, Math.floor(3 * intensity)));
     const particles = [];
 
     for (let i = 0; i < particleCount; i++) {
       const angle = (Math.PI * 2 * i) / particleCount;
-      const speed = 50 + Math.random() * 60 * intensity;  // 进一步降低速度范围
-      const size = 1 + Math.random() * 2 * intensity; // 进一步减小粒子尺寸
+      const size = 0.5 + Math.random() * 1; // 极小粒子
 
       const particle = this.scene.add.circle(x, y, size, color);
-      particle.setAlpha(0.4);  // 进一步降低初始透明度
+      particle.setAlpha(0.3);  // 极低透明度
 
       particles.push(particle);
 
-      // 优化的粒子动画 - 更短时长，更好的缓动
-      const distance = 30 + Math.random() * 40;  // 进一步减小移动距离
-      const targetX = x + Math.cos(angle) * distance * 0.05;  // 进一步减小移动范围
-      const targetY = y + Math.sin(angle) * distance * 0.05;
+      // 极短的动画
+      const distance = 10 + Math.random() * 10;  // 极小移动距离
+      const targetX = x + Math.cos(angle) * distance;
+      const targetY = y + Math.sin(angle) * distance;
 
       this.scene.tweens.add({
         targets: particle,
@@ -257,10 +274,9 @@ export class PowerUp {
         y: targetY,
         alpha: 0,
         scale: 0,
-        duration: 200 + Math.random() * 200,  // 进一步缩短动画时长
+        duration: 100 + Math.random() * 50,  // 极短动画时长
         ease: 'Sine.easeOut',
         onComplete: () => {
-          // 安全清理 - 检查对象是否已被销毁
           if (!this.destroyed && particle) {
             particle.destroy();
           }
@@ -316,7 +332,7 @@ export class PowerUp {
   }
 
   /**
-   * 显示极简分数提示
+   * 显示极简分数提示（使用粒子池优化）
    */
   showMinimalScorePopup(x, y, score, color) {
     // 如果对象已被销毁，直接返回
@@ -326,14 +342,22 @@ export class PowerUp {
     const safeColor = color || 0x4ade80;
     const colorHex = safeColor.toString(16).padStart(6, '0');
 
-    // 极简分数文本
+    // 使用场景的优化文本粒子系统
+    if (this.scene.createOptimizedTextParticle) {
+      console.log('🎯 使用优化文本粒子系统');
+      this.scene.createOptimizedTextParticle(x, y, `+${score}`, colorHex);
+      return;
+    }
+
+    // 备用方案：直接创建文本
+    console.warn('⚠️ 文本粒子系统不可用，使用备用方案');
     const scoreText = this.scene.add.text(x, y, `+${score}`, {
-      fontSize: '16px',  // 极小字体
+      fontSize: '14px',  // 更小字体
       fill: '#ffffff',
       stroke: `#${colorHex}`,
       strokeThickness: 1,  // 极细描边
-      backgroundColor: 'rgba(0,0,0,0.5)',  // 极淡背景
-      padding: { x: 4, y: 2 }  // 极小内边距
+      backgroundColor: 'rgba(0,0,0,0.3)',  // 更淡背景
+      padding: { x: 3, y: 1 }  // 更小内边距
     }).setOrigin(0.5);
 
     // 极短的动画 - 200ms

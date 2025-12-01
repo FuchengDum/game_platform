@@ -335,9 +335,6 @@ export default class GameScene extends Phaser.Scene {
     // 更新效果管理器
     this.effectManager.update(16);
 
-    // 更新效果UI显示 - 确保进度条和时间动态变化
-    this.updateEffectsDisplay();
-
     // 更新食物管理器
     if (this.foodManager) {
       this.foodManager.update(16);
@@ -415,31 +412,16 @@ export default class GameScene extends Phaser.Scene {
       const consumeResult = this.foodManager.consumeFood();
 
       if (consumeResult) {
-        // 应用效果 - 为所有食物类型添加效果管理
-        if (consumeResult.effect) {
-          // 特殊道具：添加持续时间效果
-          if (consumeResult.effect.type !== 'none' && consumeResult.effect.type !== 'normal') {
-            this.effectManager.addEffect(
-              consumeResult.effect.type,
-              consumeResult.effect.duration,
-              {
-                [consumeResult.effect.type.includes('speed') ? 'speedMultiplier' : 'scoreMultiplier']: consumeResult.effect.value
-              },
-              consumeResult.effect.name
-            );
-          }
-
-          // 普通食物：添加短期效果用于视觉反馈
-          if (consumeResult.effect.type === 'normal') {
-            this.effectManager.addEffect(
-              'normal',
-              consumeResult.effect.duration, // 使用配置中的2000ms
-              {
-                'scoreMultiplier': 1.0
-              },
-              consumeResult.effect.name
-            );
-          }
+        // 应用效果
+        if (consumeResult.effect && consumeResult.effect.type !== 'none') {
+          this.effectManager.addEffect(
+            consumeResult.effect.type,
+            consumeResult.effect.duration,
+            {
+              [consumeResult.effect.type.includes('speed') ? 'speedMultiplier' : 'scoreMultiplier']: consumeResult.effect.value
+            },
+            consumeResult.effect.name
+          );
         }
 
         // 计算分数（考虑倍数）
@@ -490,6 +472,7 @@ export default class GameScene extends Phaser.Scene {
     this.effectManager.setEffectCallback('speed_up', (event, data) => {
       if (event === 'start') {
         console.log('⚡ 加速效果开始');
+        this.showSpeedNotification('⚡ 速度提升！');
 
         // 显示效果激活UI
         if (this.effectsUI) {
@@ -497,6 +480,7 @@ export default class GameScene extends Phaser.Scene {
         }
       } else if (event === 'end') {
         console.log('⚡ 加速效果结束');
+        this.showSpeedNotification('速度恢复');
 
         // 播放效果结束音效
         if (this.soundManager) {
@@ -514,6 +498,7 @@ export default class GameScene extends Phaser.Scene {
     this.effectManager.setEffectCallback('slow_down', (event, data) => {
       if (event === 'start') {
         console.log('💧 减速效果开始');
+        this.showSpeedNotification('💧 速度减缓！');
 
         // 显示效果激活UI
         if (this.effectsUI) {
@@ -521,6 +506,7 @@ export default class GameScene extends Phaser.Scene {
         }
       } else if (event === 'end') {
         console.log('💧 减速效果结束');
+        this.showSpeedNotification('速度恢复');
 
         // 播放效果结束音效
         if (this.soundManager) {
@@ -538,6 +524,7 @@ export default class GameScene extends Phaser.Scene {
     this.effectManager.setEffectCallback('double_score', (event, data) => {
       if (event === 'start') {
         console.log('⭐ 双倍积分开始');
+        this.showScoreNotification('⭐ 双倍积分启动！');
 
         // 显示效果激活UI
         if (this.effectsUI) {
@@ -545,6 +532,7 @@ export default class GameScene extends Phaser.Scene {
         }
       } else if (event === 'end') {
         console.log('⭐ 双倍积分结束');
+        this.showScoreNotification('双倍积分结束');
 
         // 播放效果结束音效
         if (this.soundManager) {
@@ -562,10 +550,73 @@ export default class GameScene extends Phaser.Scene {
   /**
    * 创建效果显示UI
    */
+  createEffectsUI() {
+    // 效果状态显示
+    this.effectsDisplay = this.add.text(16, 100, '', {
+      fontSize: '16px',
+      fill: '#fbbf24',
+      backgroundColor: 'rgba(0,0,0,0.7)',
+      padding: { x: 10, y: 5 }
+    }).setAlpha(0.9);
+
+    // 进度条容器
+    this.progressBarContainer = this.add.graphics();
+  }
+
+  /**
+   * 显示速度通知
+   */
+  showSpeedNotification(text) {
+    const notification = this.add.text(300, 200, text, {
+      fontSize: '24px',
+      fill: '#3b82f6',
+      backgroundColor: 'rgba(0,0,0,0.8)',
+      padding: { x: 10, y: 5 }
+    }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: notification,
+      alpha: 0,
+      y: 180,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => notification.destroy()
+    });
+  }
+
+  /**
+   * 显示分数通知
+   */
+  showScoreNotification(text) {
+    const notification = this.add.text(300, 200, text, {
+      fontSize: '24px',
+      fill: '#f59e0b',
+      backgroundColor: 'rgba(0,0,0,0.8)',
+      padding: { x: 10, y: 5 }
+    }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: notification,
+      alpha: 0,
+      y: 180,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => notification.destroy()
+    });
+  }
+
+  /**
+   * 更新效果显示
+   */
   updateEffectsDisplay() {
-    // 只使用新的EffectsUI系统，避免重复显示
     if (this.effectsUI) {
       this.effectsUI.update(this.effectManager);
+    }
+
+    // 保持旧的后备显示方式
+    if (this.effectsDisplay) {
+      const effectsText = this.effectManager.formatEffectsDisplay();
+      this.effectsDisplay.setText(effectsText);
     }
   }
 
@@ -730,29 +781,39 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  showSpeedUpNotification(_oldLevel, newLevel) {
-    // 创建升级提示 - 移至右上角，适中字体
-    const screenWidth = this.cameras?.main?.width || 800;
-    const notification = this.add.text(screenWidth - 180, 50,
-      `🚀 ${this.speedConfig.levelNames[newLevel - 1]}`,
+  showSpeedUpNotification(oldLevel, newLevel) {
+    // 创建升级提示
+    const notification = this.add.text(300, 200,
+      `🚀 速度提升！${this.speedConfig.levelNames[oldLevel - 1]} → ${this.speedConfig.levelNames[newLevel - 1]}`,
       {
-        fontSize: '16px', // 适中字体，从12px增加到16px
+        fontSize: '24px',
         fill: '#ffd700',
-        backgroundColor: 'rgba(0,0,0,0.4)', // 稍微增强背景对比度
-        padding: { x: 6, y: 3 } // 适中内边距
+        backgroundColor: '#000000',
+        padding: { x: 10, y: 5 }
       }
-    ).setOrigin(0).setAlpha(0.7); // 适度透明度，从0.5增加到0.7
+    ).setOrigin(0.5).setStroke('#ff6b6b', 2);
 
-    // 极简动画效果 - 快速淡出
+    // 动画效果
+    notification.setAlpha(0).setScale(0.5);
+
     this.tweens.add({
       targets: notification,
-      alpha: 0,
-      y: 45, // 轻微上移
-      duration: 1000, // 1秒后消失，让用户有足够时间看到
-      delay: 600, // 0.6秒延迟，增加显示时间
-      ease: 'Linear',
+      alpha: 1,
+      scale: 1.2,
+      duration: 300,
+      ease: 'Back.out',
       onComplete: () => {
-        notification.destroy();
+        this.tweens.add({
+          targets: notification,
+          alpha: 0,
+          scale: 0.8,
+          duration: 1000,
+          delay: 1500,
+          ease: 'Power2',
+          onComplete: () => {
+            notification.destroy();
+          }
+        });
       }
     });
   }
@@ -878,8 +939,8 @@ export default class GameScene extends Phaser.Scene {
    * 创建优化的粒子效果
    */
   createOptimizedParticles(x, y, color, intensity = 1, type = 'circle') {
-    // 大幅减少粒子数量以避免渲染负担和闪烁
-    const particleCount = Math.min(Math.max(1, Math.floor(2 * intensity)), 4); // 从4-8减少到1-4
+    // 根据强度计算粒子数量，但限制最大数量
+    const particleCount = Math.min(Math.max(2, Math.floor(4 * intensity)), 8);
     const particles = [];
 
     for (let i = 0; i < particleCount; i++) {
@@ -890,7 +951,7 @@ export default class GameScene extends Phaser.Scene {
       }
 
       const angle = (Math.PI * 2 * i) / particleCount;
-      const size = 0.3 + Math.random() * 0.7; // 极小的粒子尺寸
+      const size = 0.5 + Math.random() * 1.5; // 更小的粒子尺寸
 
       // 创建粒子游戏对象
       if (type === 'circle') {
@@ -900,14 +961,14 @@ export default class GameScene extends Phaser.Scene {
       }
 
       if (particleData.gameObject) {
-        particleData.gameObject.setAlpha(0.2); // 进一步降低初始透明度
+        particleData.gameObject.setAlpha(0.3); // 降低初始透明度
         particleData.type = type;
 
         this.particlePool.activeParticles.push(particleData);
         particles.push(particleData);
 
-        // 极简的粒子动画
-        const distance = 8 + Math.random() * 12; // 极小的移动距离
+        // 优化的粒子动画
+        const distance = 15 + Math.random() * 25; // 更小的移动距离
         const targetX = x + Math.cos(angle) * distance;
         const targetY = y + Math.sin(angle) * distance;
 
@@ -917,8 +978,8 @@ export default class GameScene extends Phaser.Scene {
           y: targetY,
           alpha: 0,
           scale: 0,
-          duration: 80 + Math.random() * 80, // 极短的动画时长
-          ease: 'Linear', // 使用线性动画避免突兀的缓动效果
+          duration: 150 + Math.random() * 150, // 更短的动画时长
+          ease: 'Sine.easeOut',
           onComplete: () => {
             this.returnParticleToPool(particleData);
           }

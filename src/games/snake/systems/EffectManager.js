@@ -252,35 +252,12 @@ export class EffectManager {
   }
 
   /**
-   * 格式化效果显示文本
+   * 格式化效果显示文本 - 移除重复时间显示，避免UI冲突
    */
   formatEffectsDisplay() {
-    const effectsInfo = this.getActiveEffectsInfo();
-    const displayTexts = [];
-
-    for (const effect of effectsInfo) {
-      const remainingSeconds = Math.ceil(effect.remaining / 1000);
-      let icon = '';
-
-      // 根据效果类型选择图标
-      switch(effect.type) {
-        case 'speed_up':
-          icon = '⚡';
-          break;
-        case 'slow_down':
-          icon = '💧';
-          break;
-        case 'double_score':
-          icon = '⭐';
-          break;
-        default:
-          icon = '✨';
-      }
-
-      displayTexts.push(`${icon} ${effect.name}: ${remainingSeconds}s`);
-    }
-
-    return displayTexts.length > 0 ? displayTexts.join(' | ') : '';
+    // 返回空字符串，避免与EffectsUI的显示重复
+    // EffectsUI已经提供了完整的时间显示和进度条
+    return '';
   }
 
   /**

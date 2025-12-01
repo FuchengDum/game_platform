@@ -14,15 +14,18 @@ export class EffectsUI {
     this.progressBarContainer = null;
     this.effectIcons = new Map();
 
-    // UI配置 - 增强视觉效果
+    // 时间文本对象管理 - 修复重复创建问题
+    this.timeTexts = new Map();
+
+    // UI配置 - 优化布局确保道具图标完全显示，只显示特殊道具
     this.config = {
       fontSize: '16px',
       fill: '#fbbf24',
       backgroundColor: 'rgba(0,0,0,0.8)', // 稍微增强背景对比度
       padding: { x: 12, y: 6 },
-      barWidth: 120, // 增加进度条宽度
-      barHeight: 8, // 稍微增加进度条高度
-      barSpacing: 12, // 增加间距
+      barWidth: 100, // 减小进度条宽度，给整体布局更多空间
+      barHeight: 10, // 减小进度条高度，避免占用过多垂直空间
+      barSpacing: 14, // 减小间距，让布局更紧凑
       iconSpacing: 35, // 增加图标间距
 
       // 新增视觉效果配置
@@ -30,7 +33,12 @@ export class EffectsUI {
       pulseSpeed: 0.003,
       borderRadius: 4,
       shadowBlur: 8,
-      shadowOpacity: 0.6
+      shadowOpacity: 0.6,
+
+      // 图标布局配置 - 减小大小以适配游戏界面
+      iconSize: 14, // 减小图标背景圆圈大小，避免占用过多空间
+      iconOffset: 20, // 减小图标距离进度条左侧的距离
+      layoutStartX: 45 // 减小整体布局的起始X位置，节省水平空间
     };
 
     this.init();
@@ -40,16 +48,17 @@ export class EffectsUI {
    * 初始化UI元素
    */
   init() {
-    // 效果状态文本
-    this.effectsText = this.scene.add.text(this.x, this.y, '', {
-      fontSize: this.config.fontSize,
-      fill: this.config.fill,
-      backgroundColor: this.config.backgroundColor,
-      padding: this.config.padding
-    }).setAlpha(0.9);
+    // 效果状态文本 - 保持可见但简化内容
+    this.effectsText = this.scene.add.text(this.x, this.y, '道具效果', {
+      fontSize: '14px',
+      fill: '#fbbf24',
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      padding: { x: 8, y: 4 }
+    }).setAlpha(0.8);
 
-    // 进度条容器
+    // 进度条容器 - 确保可见
     this.progressBarContainer = this.scene.add.graphics();
+    this.progressBarContainer.setAlpha(1.0);
   }
 
   /**
@@ -61,13 +70,14 @@ export class EffectsUI {
     // 更新文本显示
     this.updateEffectsText(effectManager);
 
-    // 更新进度条
+    // 更新进度条（只显示特殊道具，不显示普通食物）
     this.updateProgressBars(activeEffects);
 
-    // 更新图标
+    // 更新图标（只显示特殊道具，不显示普通食物）
     this.updateEffectIcons(activeEffects);
   }
 
+  
   /**
    * 更新效果文本
    */
@@ -84,100 +94,95 @@ export class EffectsUI {
   }
 
   /**
-   * 更新进度条
+   * 更新进度条（只显示特殊道具效果，不显示普通食物）
    */
   updateProgressBars(activeEffects) {
     this.progressBarContainer.clear();
 
-    if (activeEffects.length === 0) {
+    // 过滤掉普通食物效果，只显示特殊道具效果
+    const specialEffects = activeEffects.filter(effect => effect.type !== 'normal');
+
+    // 隐藏所有未使用的时间文本
+    const activeEffectTypes = new Set(specialEffects.map(effect => effect.type));
+    for (const [key, timeText] of this.timeTexts) {
+      const effectType = key.replace('_time', '');
+      if (!activeEffectTypes.has(effectType)) {
+        timeText.setVisible(false);
+      }
+    }
+
+    if (specialEffects.length === 0) {
       return;
     }
 
     const startY = this.y + 35;
+    const barX = this.config.layoutStartX; // 使用新的布局起始位置
 
-    activeEffects.forEach((effect, index) => {
+    specialEffects.forEach((effect, index) => {
       const barY = startY + index * this.config.barSpacing;
 
-      // 背景进度条
-      const bgColor = this.adjustColorAlpha(0x374151, 1);
-      this.progressBarContainer.fillStyle = bgColor;
+      // 简化进度条绘制 - 确保可见
+      const progress = 1 - (effect.remaining / effect.duration);
+      const progressWidth = this.config.barWidth * progress;
+      const color = this.getEffectColor(effect.type);
+
+      // 1. 绘制背景进度条（深灰色）
+      this.progressBarContainer.fillStyle = 0x374151;
       this.progressBarContainer.fillRect(
-        this.x,
+        barX,
         barY,
         this.config.barWidth,
         this.config.barHeight
       );
 
-      // 进度条填充 - 增强视觉效果
-      const progress = 1 - (effect.remaining / effect.duration);
-      const progressWidth = this.config.barWidth * progress;
-      const color = this.getEffectColor(effect.type);
-
-      // 绘制发光背景
-      this.drawGlowingBar(
-        this.progressBarContainer,
-        this.x - 2,
-        barY - 1,
-        this.config.barWidth + 4,
-        this.config.barHeight + 2,
-        color,
-        this.config.glowIntensity * 0.3
-      );
-
-      // 主进度条 - 圆角矩形
-      this.drawRoundedRect(
-        this.progressBarContainer,
-        this.x,
-        barY,
-        progressWidth,
-        this.config.barHeight,
-        color,
-        1
-      );
-
-      // 进度条发光效果
-      if (progress > 0.1) {
-        this.drawGlowingBar(
-          this.progressBarContainer,
-          this.x,
+      // 2. 绘制进度条填充（使用效果颜色）
+      if (progressWidth > 0) {
+        this.progressBarContainer.fillStyle = color;
+        this.progressBarContainer.fillRect(
+          barX,
           barY,
           progressWidth,
-          this.config.barHeight,
-          color,
-          this.config.glowIntensity * 0.5
+          this.config.barHeight
         );
       }
 
-      // 动态边框 - 根据剩余时间改变颜色强度
-      const borderIntensity = Math.max(0.3, effect.remaining / effect.duration);
-      this.progressBarContainer.lineStyle(2, color, borderIntensity);
-      this.drawRoundedRect(
-        this.progressBarContainer,
-        this.x,
+      // 3. 绘制边框（增强可见性）
+      this.progressBarContainer.lineStyle(1, color, 0.8);
+      this.progressBarContainer.strokeRect(
+        barX,
         barY,
         this.config.barWidth,
-        this.config.barHeight,
-        null,
-        0
+        this.config.barHeight
       );
 
-      // 剩余时间文本 - 创建文本对象而不是在graphics上绘制
+      // 4. 显示增大的时间文本以匹配进度条
       const remainingSeconds = Math.ceil(effect.remaining / 1000);
-      const timeText = this.scene.add.text(
-        this.x + this.config.barWidth + 10,
-        barY + this.config.barHeight - 1,
-        `${remainingSeconds}s`,
-        {
-          fontSize: '10px',
-          fill: '#ffffff',
-          fontFamily: 'Arial, sans-serif'
-        }
-      ).setOrigin(0, 0.5); // 左对齐，垂直居中
+      const timeTextKey = `${effect.type}_time`;
+
+      let timeText = this.timeTexts.get(timeTextKey);
+      if (!timeText) {
+        timeText = this.scene.add.text(
+          barX + this.config.barWidth + 15, // 增加间距从10到15
+          barY + this.config.barHeight / 2,
+          `${remainingSeconds}s`,
+          {
+            fontSize: '16px', // 从12px增加到16px以匹配增大的进度条
+            fill: '#fbbf24',
+            backgroundColor: 'rgba(0,0,0,0.6)', // 增强背景对比度
+            padding: { x: 6, y: 2 } // 增大内边距
+          }
+        ).setOrigin(0, 0.5);
+        this.timeTexts.set(timeTextKey, timeText);
+      } else {
+        timeText.setPosition(barX + this.config.barWidth + 15, barY + this.config.barHeight / 2);
+        timeText.setText(`${remainingSeconds}s`);
+        timeText.setVisible(true);
+      }
     });
   }
 
   /**
-   * 更新效果图标
+   * 更新效果图标 - 只显示特殊道具，不显示普通食物
    */
   updateEffectIcons(activeEffects) {
     // 清除旧图标
@@ -186,17 +191,84 @@ export class EffectsUI {
     }
     this.effectIcons.clear();
 
-    // 创建新图标
-    const iconY = this.y + 80;
-    activeEffects.forEach((effect, index) => {
-      const iconX = this.x + index * this.config.iconSpacing;
-      const icon = this.createEffectIcon(effect.type, iconX, iconY);
+    // 过滤掉普通食物效果，只显示特殊道具效果
+    const specialEffects = activeEffects.filter(effect => effect.type !== 'normal');
+
+    if (specialEffects.length === 0) {
+      return;
+    }
+
+    // 将图标放置在进度条左侧，与每个进度条对齐
+    const startY = this.y + 35; // 与进度条起始位置对齐
+    const iconX = this.config.layoutStartX - this.config.iconOffset; // 图标距离进度条左侧的距离
+
+    // 只处理特殊道具图标，确保每个图标有独立的垂直位置
+    specialEffects.forEach((effect, index) => {
+      const barY = startY + index * this.config.barSpacing;
+      // 图标应该对齐到进度条的垂直中心，而不是顶部
+      const iconY = barY + (this.config.barHeight / 2);
+
+      console.log(`图标 ${index}: type=${effect.type}, barY=${barY}, iconY=${iconY}, iconX=${iconX}`);
+
+      const icon = this.createOptimizedEffectIcon(effect.type, iconX, iconY);
       this.effectIcons.set(effect.type, icon);
     });
   }
 
+  
   /**
-   * 创建效果图标
+   * 创建优化的效果图标 - 增强可见性，增大尺寸，包含普通食物
+   */
+  createOptimizedEffectIcon(effectType, x, y) {
+    const iconConfig = {
+      normal: {
+        emoji: '🍎',
+        color: 0x4ade80,
+        animation: 'gentle-pulse'
+      },
+      speed_up: {
+        emoji: '⚡',
+        color: 0x3b82f6,
+        animation: 'pulse'
+      },
+      slow_down: {
+        emoji: '💧',
+        color: 0x10b981,
+        animation: 'wave'
+      },
+      double_score: {
+        emoji: '⭐',
+        color: 0xf59e0b,
+        animation: 'rotate'
+      }
+    };
+
+    const config = iconConfig[effectType] || iconConfig.speed_up;
+
+    // 创建图标背景 - 使用配置中的图标大小
+    const bg = this.scene.add.circle(x, y, this.config.iconSize, config.color, 0.5); // 使用配置的图标大小
+    bg.setStrokeStyle(2, config.color, 1.0); // 减小边框宽度以匹配较小的图标
+
+    // 创建图标文本 - 根据图标大小调整字体大小以匹配进度条
+    const fontSize = Math.floor(this.config.iconSize * 0.8); // 减小字体比例以匹配较小的图标
+    const iconText = this.scene.add.text(x, y, config.emoji, {
+      fontSize: `${fontSize}px`, // 动态字体大小
+      fill: '#ffffff',
+      stroke: '#000000', // 保持黑色描边增强对比度
+      strokeThickness: 1 // 减小描边厚度以匹配较小的图标
+    }).setOrigin(0.5);
+
+    // 创建容器
+    const container = this.scene.add.container(0, 0, [bg, iconText]);
+
+    // 应用增强动画 - 保持适度的动画效果
+    this.applyOptimizedIconAnimation(container, config.animation);
+
+    return container;
+  }
+
+  /**
+   * 创建效果图标 (原方法保留作为备用)
    */
   createEffectIcon(effectType, x, y) {
     const iconConfig = {
@@ -236,6 +308,59 @@ export class EffectsUI {
     this.applyIconAnimation(container, config.animation);
 
     return container;
+  }
+
+  /**
+   * 应用优化的图标动画 - 增强可见性，包含普通食物动画
+   */
+  applyOptimizedIconAnimation(container, animationType) {
+    switch (animationType) {
+      case 'gentle-pulse':
+        // 普通食物的温和脉冲动画
+        this.scene.tweens.add({
+          targets: container,
+          scaleX: 1.15,
+          scaleY: 1.15,
+          duration: 1200, // 缓慢脉冲，不干扰
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut'
+        });
+        break;
+
+      case 'pulse':
+        this.scene.tweens.add({
+          targets: container,
+          scaleX: 1.3, // 从1.1增加到1.3，更明显的脉冲效果
+          scaleY: 1.3,
+          duration: 600, // 从800ms减少到600ms，更活跃
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut'
+        });
+        break;
+
+      case 'wave':
+        this.scene.tweens.add({
+          targets: container,
+          y: container.y - 3, // 从2增加到3，更明显的上下移动
+          duration: 800, // 从1200ms减少到800ms，更活跃
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut'
+        });
+        break;
+
+      case 'rotate':
+        this.scene.tweens.add({
+          targets: container,
+          angle: 360,
+          duration: 2000, // 从3000ms减少到2000ms，更活跃
+          repeat: -1,
+          ease: 'Linear'
+        });
+        break;
+    }
   }
 
   /**
@@ -292,39 +417,28 @@ export class EffectsUI {
   }
 
   /**
-   * 显示效果激活通知
+   * 显示效果激活通知 - 优化字体和位置
    */
   showEffectActivated(effectType, effectName) {
     const effectColor = this.getEffectColor(effectType);
-    const notification = this.scene.add.text(400, 200, `${this.getEffectEmoji(effectType)} ${effectName} 激活！`, {
-      fontSize: '28px',
+    // 移至屏幕右上角边缘，适中字体
+    const screenWidth = this.scene.cameras?.main?.width || 800;
+    const notification = this.scene.add.text(screenWidth - 120, 15, `${this.getEffectEmoji(effectType)} ${effectName}`, {
+      fontSize: '14px', // 适中字体，从10px增加到14px
       fill: `#${effectColor.toString(16).padStart(6, '0')}`,
-      backgroundColor: 'rgba(0,0,0,0.8)',
-      padding: { x: 15, y: 8 }
-    }).setOrigin(0.5);
+      backgroundColor: 'rgba(0,0,0,0.3)', // 稍微增强背景对比度
+      padding: { x: 5, y: 2 } // 适中内边距
+    }).setOrigin(0).setAlpha(0.6); // 适度透明度，从0.4增加到0.6
 
-    // 动画效果
-    notification.setAlpha(0).setScale(0.5);
-
+    // 极简的动画效果 - 快速淡出
     this.scene.tweens.add({
       targets: notification,
-      alpha: 1,
-      scale: 1.1,
-      duration: 300,
-      ease: 'Back.out',
+      alpha: 0,
+      duration: 1200, // 1.2秒后完全消失，让用户有足够时间看到
+      delay: 500, // 延迟500ms开始淡出，增加显示时间
+      ease: 'Linear',
       onComplete: () => {
-        this.scene.tweens.add({
-          targets: notification,
-          alpha: 0,
-          y: 180,
-          scale: 0.9,
-          duration: 1000,
-          delay: 1500,
-          ease: 'Power2',
-          onComplete: () => {
-            notification.destroy();
-          }
-        });
+        notification.destroy();
       }
     });
   }
@@ -520,6 +634,12 @@ export class EffectsUI {
       icon.destroy();
     }
     this.effectIcons.clear();
+
+    // 清理时间文本对象
+    for (const [key, timeText] of this.timeTexts) {
+      timeText.destroy();
+    }
+    this.timeTexts.clear();
   }
 }
 
