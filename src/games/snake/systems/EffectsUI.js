@@ -17,15 +17,18 @@ export class EffectsUI {
     // 时间文本对象管理 - 修复重复创建问题
     this.timeTexts = new Map();
 
+    // 图标文本对象管理 - 避免重复创建
+    this.iconTexts = new Map();
+
     // UI配置 - 优化布局确保道具图标完全显示，只显示特殊道具
     this.config = {
       fontSize: '16px',
       fill: '#fbbf24',
       backgroundColor: 'rgba(0,0,0,0.8)', // 稍微增强背景对比度
       padding: { x: 12, y: 6 },
-      barWidth: 100, // 减小进度条宽度，给整体布局更多空间
-      barHeight: 10, // 减小进度条高度，避免占用过多垂直空间
-      barSpacing: 14, // 减小间距，让布局更紧凑
+      barWidth: 120, // 恢复进度条宽度，提供更好的视觉效果
+      barHeight: 12, // 增加进度条高度，与图标更好匹配
+      barSpacing: 16, // 增加垂直间距，让布局更清晰
       iconSpacing: 35, // 增加图标间距
 
       // 新增视觉效果配置
@@ -35,10 +38,10 @@ export class EffectsUI {
       shadowBlur: 8,
       shadowOpacity: 0.6,
 
-      // 图标布局配置 - 减小大小以适配游戏界面
-      iconSize: 14, // 减小图标背景圆圈大小，避免占用过多空间
-      iconOffset: 20, // 减小图标距离进度条左侧的距离
-      layoutStartX: 45 // 减小整体布局的起始X位置，节省水平空间
+      // 图标布局配置 - 优化大小和间距以适配游戏界面
+      iconSize: 16, // 稍微增大图标大小，提高可见性
+      iconOffset: 24, // 图标与进度条的间距
+      layoutStartX: 55 // 整体布局的起始X位置，提供足够空间
     };
 
     this.init();
@@ -73,8 +76,8 @@ export class EffectsUI {
     // 更新进度条（只显示特殊道具，不显示普通食物）
     this.updateProgressBars(activeEffects);
 
-    // 更新图标（只显示特殊道具，不显示普通食物）
-    this.updateEffectIcons(activeEffects);
+    // 简化方案：只显示进度条，不显示图标，避免重叠问题
+    // this.updateEffectIcons(activeEffects); // 暂时注释掉，解决重叠问题
   }
 
   
@@ -99,13 +102,19 @@ export class EffectsUI {
   updateProgressBars(activeEffects) {
     this.progressBarContainer.clear();
 
+    // 清除之前创建的图标文本
+    for (const [, iconText] of this.iconTexts) {
+      iconText.destroy();
+    }
+    this.iconTexts.clear();
+
     // 过滤掉普通食物效果，只显示特殊道具效果
     const specialEffects = activeEffects.filter(effect => effect.type !== 'normal');
 
     // 隐藏所有未使用的时间文本
     const activeEffectTypes = new Set(specialEffects.map(effect => effect.type));
-    for (const [key, timeText] of this.timeTexts) {
-      const effectType = key.replace('_time', '');
+    for (const [, timeText] of this.timeTexts) {
+      const effectType = timeText.text.replace('_time', '');
       if (!activeEffectTypes.has(effectType)) {
         timeText.setVisible(false);
       }
@@ -120,13 +129,14 @@ export class EffectsUI {
 
     specialEffects.forEach((effect, index) => {
       const barY = startY + index * this.config.barSpacing;
-
-      // 简化进度条绘制 - 确保可见
       const progress = 1 - (effect.remaining / effect.duration);
       const progressWidth = this.config.barWidth * progress;
       const color = this.getEffectColor(effect.type);
 
-      // 1. 绘制背景进度条（深灰色）
+      // 获取道具图标
+      const iconEmoji = this.getEffectEmoji(effect.type);
+
+      // 1. 绘制增强进度条背景（带图标）
       this.progressBarContainer.fillStyle = 0x374151;
       this.progressBarContainer.fillRect(
         barX,
@@ -155,21 +165,37 @@ export class EffectsUI {
         this.config.barHeight
       );
 
-      // 4. 显示增大的时间文本以匹配进度条
+      // 4. 在进度条左侧绘制道具图标（使用Graphics API）
+      const iconText = this.scene.add.text(
+        barX - 20,
+        barY + this.config.barHeight / 2,
+        iconEmoji,
+        {
+          fontSize: '14px',
+          fill: '#ffffff',
+          backgroundColor: color,
+          padding: { x: 2, y: 1 }
+        }
+      ).setOrigin(0.5);
+
+      // 存储图标文本以便清理
+      this.iconTexts.set(`${effect.type}_icon`, iconText);
+
+      // 5. 显示增大的时间文本以匹配进度条
       const remainingSeconds = Math.ceil(effect.remaining / 1000);
       const timeTextKey = `${effect.type}_time`;
 
       let timeText = this.timeTexts.get(timeTextKey);
       if (!timeText) {
         timeText = this.scene.add.text(
-          barX + this.config.barWidth + 15, // 增加间距从10到15
+          barX + this.config.barWidth + 15,
           barY + this.config.barHeight / 2,
           `${remainingSeconds}s`,
           {
-            fontSize: '16px', // 从12px增加到16px以匹配增大的进度条
+            fontSize: '16px',
             fill: '#fbbf24',
-            backgroundColor: 'rgba(0,0,0,0.6)', // 增强背景对比度
-            padding: { x: 6, y: 2 } // 增大内边距
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            padding: { x: 6, y: 2 }
           }
         ).setOrigin(0, 0.5);
         this.timeTexts.set(timeTextKey, timeText);
@@ -186,7 +212,7 @@ export class EffectsUI {
    */
   updateEffectIcons(activeEffects) {
     // 清除旧图标
-    for (const [type, icon] of this.effectIcons) {
+    for (const [, icon] of this.effectIcons) {
       icon.destroy();
     }
     this.effectIcons.clear();
@@ -198,14 +224,20 @@ export class EffectsUI {
       return;
     }
 
-    // 将图标放置在进度条左侧，与每个进度条对齐
+    // 重新设计布局策略
     const startY = this.y + 35; // 与进度条起始位置对齐
-    const iconX = this.config.layoutStartX - this.config.iconOffset; // 图标距离进度条左侧的距离
+    const barX = this.config.layoutStartX; // 进度条起始X坐标
+    const iconSize = this.config.iconSize;
+    const iconToBarSpacing = 8; // 图标与进度条之间的间距
 
-    // 只处理特殊道具图标，确保每个图标有独立的垂直位置
+    // 每个图标都与其对应的进度条水平对齐，垂直居中
     specialEffects.forEach((effect, index) => {
       const barY = startY + index * this.config.barSpacing;
-      // 图标应该对齐到进度条的垂直中心，而不是顶部
+
+      // 图标与进度条左边缘保持固定间距，图标中心与进度条左边缘对齐
+      const iconX = barX - iconToBarSpacing - (iconSize / 2);
+
+      // 图标垂直居中对齐到进度条
       const iconY = barY + (this.config.barHeight / 2);
 
       console.log(`图标 ${index}: type=${effect.type}, barY=${barY}, iconY=${iconY}, iconX=${iconX}`);
@@ -250,7 +282,7 @@ export class EffectsUI {
     bg.setStrokeStyle(2, config.color, 1.0); // 减小边框宽度以匹配较小的图标
 
     // 创建图标文本 - 根据图标大小调整字体大小以匹配进度条
-    const fontSize = Math.floor(this.config.iconSize * 0.8); // 减小字体比例以匹配较小的图标
+    const fontSize = Math.floor(this.config.iconSize * 0.9); // 调整字体比例以匹配图标大小
     const iconText = this.scene.add.text(x, y, config.emoji, {
       fontSize: `${fontSize}px`, // 动态字体大小
       fill: '#ffffff',

@@ -24,11 +24,11 @@ export const POWER_UP_TYPES = {
     borderColor: 0x1e40af,     // 深蓝色边框
     score: 20,
     probability: 0.15,          // 15% 概率
-    duration: 8000,            // 8秒（更充分的加速体验）
+    duration: 10000,           // 10秒（增强的加速体验）
     icon: '⚡',
     sound: 'speed_up',
     effect: 'speed_multiplier',
-    effectValue: 1.4           // 速度提升40%（更可控）
+    effectValue: 1.6           // 速度提升60%（更强的加速效果）
   },
 
   SLOW_DOWN: {

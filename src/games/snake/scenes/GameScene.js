@@ -23,14 +23,15 @@ export default class GameScene extends Phaser.Scene {
     this.foodCount = 0; // 吃到的食物数量
     this.speedLevel = 1; // 当前速度等级 - 初始为熟练
 
-    // 速度调整配置
+    // 速度调整配置 - 扩展到10级，提供更高的挑战性
     this.speedConfig = {
-      // 每3个食物升一级 - 更快的升级
-      foodPerLevel: 3,
-      // 速度等级对应的延迟时间
-      levelDelays: [120, 110, 100, 90, 80, 70],
-      // 速度等级名称
-      levelNames: ['熟练', '优秀', '专家', '大师', '王者', '传奇']
+      // 前期每3个食物升一级，后期每4个食物升级
+      foodPerLevelBasic: 3,   // 1-6级：每3个食物升级
+      foodPerLevelAdvanced: 4, // 7-10级：每4个食物升级
+      // 速度等级对应的延迟时间 - 扩展到10级
+      levelDelays: [120, 110, 100, 90, 80, 70, 65, 60, 55, 50],
+      // 速度等级名称 - 新增4个高速称号
+      levelNames: ['熟练', '优秀', '专家', '大师', '王者', '传奇', '神话', '至尊', '极速', '闪电']
     };
 
     // 动画相关
@@ -708,11 +709,24 @@ export default class GameScene extends Phaser.Scene {
   }
 
   updateSpeed() {
-    // 计算应该达到的速度等级
-    const newLevel = Math.min(
-      Math.floor(this.foodCount / this.speedConfig.foodPerLevel) + 1,
-      this.speedConfig.levelDelays.length
-    );
+    // 计算应该达到的速度等级 - 支持前后期不同的升级节奏
+    let newLevel = 1;
+    let remainingFood = this.foodCount;
+
+    // 前期升级（1-6级）：每3个食物升级
+    const basicLevelFood = Math.min(remainingFood, 6 * this.speedConfig.foodPerLevelBasic);
+    const basicLevels = Math.floor(basicLevelFood / this.speedConfig.foodPerLevelBasic);
+    newLevel += basicLevels;
+    remainingFood -= basicLevelFood;
+
+    // 后期升级（7-10级）：每4个食物升级
+    if (remainingFood > 0 && newLevel < this.speedConfig.levelDelays.length) {
+      const advancedLevels = Math.floor(remainingFood / this.speedConfig.foodPerLevelAdvanced);
+      newLevel += Math.min(advancedLevels, this.speedConfig.levelDelays.length - newLevel);
+    }
+
+    // 限制最大等级
+    newLevel = Math.min(newLevel, this.speedConfig.levelDelays.length);
 
     // 如果速度等级提升
     if (newLevel > this.speedLevel) {
