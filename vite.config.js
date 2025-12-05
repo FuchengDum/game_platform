@@ -15,7 +15,9 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    open: true
+    host: '0.0.0.0', // 允许外部访问
+    open: true,
+    allowedHosts: ['localhost', '127.0.0.1', '192.168.0.104','www.fdblog.de5.net'] // 允许的主机名
   },
   build: {
     rollupOptions: {
