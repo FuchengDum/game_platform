@@ -1,0 +1,47 @@
+<svg width="400" height="300" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景 -->
+  <rect width="400" height="300" fill="#1a1a2e"/>
+
+  <!-- 网格图案 -->
+  <defs>
+    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <rect width="20" height="20" fill="none" stroke="#2d2d44" stroke-width="0.5"/>
+    </pattern>
+  </defs>
+  <rect width="400" height="300" fill="url(#grid)"/>
+
+  <!-- 贪吃蛇身体 -->
+  <g id="snake">
+    <!-- 蛇头 -->
+    <rect x="160" y="100" width="30" height="30" rx="4" fill="#48dbfb" stroke="#0abde3" stroke-width="2"/>
+    <!-- 蛇眼 -->
+    <circle cx="170" cy="110" r="3" fill="#fff"/>
+    <circle cx="180" cy="110" r="3" fill="#fff"/>
+    <circle cx="170" cy="110" r="1.5" fill="#000"/>
+    <circle cx="180" cy="110" r="1.5" fill="#000"/>
+
+    <!-- 蛇身体 -->
+    <rect x="130" y="100" width="30" height="30" rx="4" fill="#0abde3" stroke="#006ba6" stroke-width="1.5"/>
+    <rect x="100" y="100" width="30" height="30" rx="4" fill="#0abde3" stroke="#006ba6" stroke-width="1.5"/>
+    <rect x="70" y="100" width="30" height="30" rx="4" fill="#0abde3" stroke="#006ba6" stroke-width="1.5"/>
+    <rect x="70" y="130" width="30" height="30" rx="4" fill="#0abde3" stroke="#006ba6" stroke-width="1.5"/>
+    <rect x="70" y="160" width="30" height="30" rx="4" fill="#0abde3" stroke="#006ba6" stroke-width="1.5"/>
+  </g>
+
+  <!-- 食物 -->
+  <g id="food">
+    <circle cx="250" cy="120" r="8" fill="#ff6b6b">
+      <animate attributeName="r" values="8;10;8" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="320" cy="80" r="8" fill="#ff6b6b">
+      <animate attributeName="r" values="8;10;8" dur="2s" begin="0.5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="180" cy="200" r="8" fill="#ff6b6b">
+      <animate attributeName="r" values="8;10;8" dur="2s" begin="1s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <!-- 游戏标题 -->
+  <text x="200" y="260" text-anchor="middle" fill="#48dbfb" font-family="Arial, sans-serif" font-size="28" font-weight="bold">贪吃蛇</text>
+  <text x="200" y="280" text-anchor="middle" fill="#999" font-family="Arial, sans-serif" font-size="14">Snake Game</text>
+</svg>
