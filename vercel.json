@@ -32,11 +32,11 @@
       ]
     },
     {
-      "source": "/(.*\\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json))",
+      "source": "/static/(.*)",
       "headers": [
         {
           "key": "Cache-Control",
-          "value": "public, max-age=31536000"
+          "value": "public, max-age=31536000, immutable"
         }
       ]
     }
