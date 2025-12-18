@@ -3,6 +3,45 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getGameById, loadGame } from '../utils/gameRegistry';
 import useGameStore from '../store/gameStore';
 
+// 移动端虚拟控制按钮组件
+const MobileControlButtons = ({ onControl }) => {
+  return (
+    <div className="flex flex-col items-center gap-2 sm:hidden mt-4">
+      <button
+        onClick={() => onControl('UP')}
+        className="w-14 h-14 bg-primary-500 hover:bg-primary-600 active:bg-primary-700 rounded-full flex items-center justify-center text-2xl text-white shadow-lg transition-all active:scale-95"
+        aria-label="向上"
+      >
+        ↑
+      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={() => onControl('LEFT')}
+          className="w-14 h-14 bg-primary-500 hover:bg-primary-600 active:bg-primary-700 rounded-full flex items-center justify-center text-2xl text-white shadow-lg transition-all active:scale-95"
+          aria-label="向左"
+        >
+          ←
+        </button>
+        <button
+          onClick={() => onControl('DOWN')}
+          className="w-14 h-14 bg-primary-500 hover:bg-primary-600 active:bg-primary-700 rounded-full flex items-center justify-center text-2xl text-white shadow-lg transition-all active:scale-95"
+          aria-label="向下"
+        >
+          ↓
+        </button>
+        <button
+          onClick={() => onControl('RIGHT')}
+          className="w-14 h-14 bg-primary-500 hover:bg-primary-600 active:bg-primary-700 rounded-full flex items-center justify-center text-2xl text-white shadow-lg transition-all active:scale-95"
+          aria-label="向右"
+        >
+          →
+        </button>
+      </div>
+      <p className="text-xs text-gray-400 mt-2">使用方向键或滑动屏幕控制</p>
+    </div>
+  );
+};
+
 function GameContainer() {
   const { gameId } = useParams();
   const navigate = useNavigate();
@@ -12,7 +51,52 @@ function GameContainer() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isPaused, setIsPaused] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const updateGameRecord = useGameStore((state) => state.updateGameRecord);
+
+  // 检测移动设备
+  useEffect(() => {
+    const checkMobile = () => {
+      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                           window.innerWidth < 768;
+      setIsMobile(isMobileDevice);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // 处理移动端控制
+  const handleMobileControl = (direction) => {
+    if (gameRef.current && gameRef.current.scene && gameRef.current.scene.scenes.length > 0) {
+      const gameScene = gameRef.current.scene.scenes[0];
+      // 检查是否有控制方法
+      if (gameScene.handleSwipe) {
+        let startX = gameScene.cameras.main.width / 2;
+        let startY = gameScene.cameras.main.height / 2;
+        let endX = startX;
+        let endY = startY;
+
+        switch (direction) {
+          case 'UP':
+            endY -= 100;
+            break;
+          case 'DOWN':
+            endY += 100;
+            break;
+          case 'LEFT':
+            endX -= 100;
+            break;
+          case 'RIGHT':
+            endX += 100;
+            break;
+        }
+
+        gameScene.handleSwipe(startX, startY, endX, endY);
+      }
+    }
+  };
 
   // 先加载游戏配置和类
   useEffect(() => {
@@ -130,62 +214,120 @@ function GameContainer() {
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 py-4">
-      {/* 游戏容器 - 居中显示 */}
-      <div className="space-y-4">
-        {/* 游戏信息和控制栏 */}
-        <div className="w-full max-w-4xl bg-game-card rounded-lg px-4 py-2.5 flex items-center justify-between flex-wrap gap-3">
-          {/* 左侧：游戏信息 */}
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">{gameConfig.icon}</span>
-            <div>
-              <h2 className="text-base font-bold leading-tight">{gameConfig.name}</h2>
-              <p className="text-xs text-gray-400 leading-tight">
-                {gameConfig.controls.desktop}
-              </p>
+    <div className="w-full max-w-4xl mx-auto px-2 sm:px-4 py-2 sm:py-4">
+      {/* 游戏容器 - 移动端优化 */}
+      <div className="space-y-3 sm:space-y-4">
+        {/* 游戏信息和控制栏 - 移动端优化 */}
+        <div className="w-full bg-game-card rounded-lg px-3 py-2 sm:px-4 sm:py-2.5">
+          {/* 桌面端布局 */}
+          <div className="hidden sm:flex items-center justify-between">
+            {/* 左侧：游戏信息 */}
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{gameConfig.icon}</span>
+              <div>
+                <h2 className="text-base font-bold leading-tight">{gameConfig.name}</h2>
+                <p className="text-xs text-gray-400 leading-tight">
+                  {gameConfig.controls.desktop}
+                </p>
+              </div>
+            </div>
+
+            {/* 右侧：控制按钮 */}
+            <div className="flex gap-2">
+              <button
+                onClick={handlePauseResume}
+                className="bg-game-accent hover:bg-opacity-80 text-white
+                         px-4 py-2 rounded-lg text-sm font-medium transition-all
+                         flex items-center gap-1.5"
+                title={isPaused ? '继续' : '暂停'}
+              >
+                <span className="text-base">{isPaused ? '▶️' : '⏸️'}</span>
+                <span>{isPaused ? '继续' : '暂停'}</span>
+              </button>
+              <button
+                onClick={handleRestart}
+                className="bg-game-accent hover:bg-opacity-80 text-white
+                         px-4 py-2 rounded-lg text-sm font-medium transition-all
+                         flex items-center gap-1.5"
+                title="重新开始"
+              >
+                <span className="text-base">🔄</span>
+                <span>重玩</span>
+              </button>
+              <button
+                onClick={handleExit}
+                className="bg-red-600 hover:bg-red-700 text-white
+                         px-4 py-2 rounded-lg text-sm font-medium transition-all
+                         flex items-center gap-1.5"
+                title="退出游戏"
+              >
+                <span className="text-base">❌</span>
+                <span>退出</span>
+              </button>
             </div>
           </div>
 
-          {/* 右侧：控制按钮 */}
-          <div className="flex gap-2">
-            <button
-              onClick={handlePauseResume}
-              className="bg-game-accent hover:bg-opacity-80 text-white
-                       px-4 py-2 rounded-lg text-sm font-medium transition-all
-                       flex items-center gap-1.5"
-              title={isPaused ? '继续' : '暂停'}
-            >
-              <span className="text-base">{isPaused ? '▶️' : '⏸️'}</span>
-              <span className="hidden sm:inline">{isPaused ? '继续' : '暂停'}</span>
-            </button>
-            <button
-              onClick={handleRestart}
-              className="bg-game-accent hover:bg-opacity-80 text-white
-                       px-4 py-2 rounded-lg text-sm font-medium transition-all
-                       flex items-center gap-1.5"
-              title="重新开始"
-            >
-              <span className="text-base">🔄</span>
-              <span className="hidden sm:inline">重玩</span>
-            </button>
-            <button
-              onClick={handleExit}
-              className="bg-red-600 hover:bg-red-700 text-white
-                       px-4 py-2 rounded-lg text-sm font-medium transition-all
-                       flex items-center gap-1.5"
-              title="退出游戏"
-            >
-              <span className="text-base">❌</span>
-              <span className="hidden sm:inline">退出</span>
-            </button>
+          {/* 移动端布局 */}
+          <div className="sm:hidden">
+            {/* 游戏信息 - 紧凑布局 */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">{gameConfig.icon}</span>
+                <div>
+                  <h2 className="text-sm font-bold leading-tight">{gameConfig.name}</h2>
+                  <p className="text-xs text-gray-400 leading-tight">
+                    {isMobile ? gameConfig.controls.mobile : gameConfig.controls.desktop}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 移动端控制按钮 - 小尺寸 */}
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={handlePauseResume}
+                className="bg-game-accent hover:bg-opacity-80 text-white
+                         w-12 h-12 rounded-lg flex items-center justify-center
+                         transition-all active:scale-95"
+                title={isPaused ? '继续' : '暂停'}
+              >
+                <span className="text-lg">{isPaused ? '▶️' : '⏸️'}</span>
+              </button>
+              <button
+                onClick={handleRestart}
+                className="bg-game-accent hover:bg-opacity-80 text-white
+                         w-12 h-12 rounded-lg flex items-center justify-center
+                         transition-all active:scale-95"
+                title="重新开始"
+              >
+                <span className="text-lg">🔄</span>
+              </button>
+              <button
+                onClick={handleExit}
+                className="bg-red-600 hover:bg-red-700 text-white
+                         w-12 h-12 rounded-lg flex items-center justify-center
+                         transition-all active:scale-95"
+                title="退出游戏"
+              >
+                <span className="text-lg">❌</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Phaser 游戏画面 */}
-        <div
-          id="phaser-game"
-          ref={containerRef}
-        />
+        {/* Phaser 游戏画面 - 响应式容器 */}
+        <div className="flex justify-center">
+          <div
+            id="phaser-game"
+            ref={containerRef}
+            className="w-full max-w-full sm:max-w-[600px]"
+          />
+        </div>
+
+        {/* 移动端虚拟控制按钮 */}
+        {isMobile && gameId === 'snake' && (
+          <MobileControlButtons onControl={handleMobileControl} />
+        )}
       </div>
 
       {/* 暂停遮罩 */}

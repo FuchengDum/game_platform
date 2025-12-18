@@ -34,15 +34,116 @@
 #phaser-game {
   @apply rounded-lg overflow-hidden shadow-2xl;
   background-color: #1a1a2e;
-  width: 600px;
-  height: 600px;
+  width: 100%;
+  max-width: 600px;
+  aspect-ratio: 1/1;
+  height: auto;
   margin: 0 auto;
+  position: relative;
 }
 
 #phaser-game canvas {
   display: block;
   width: 100% !important;
   height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  #phaser-game {
+    max-width: 90vw;
+    height: 90vw;
+    aspect-ratio: 1/1;
+  }
+
+  /* 调整游戏画布缩放 */
+  #phaser-game canvas {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain;
+  }
+}
+
+/* 小屏幕适配 */
+@media (max-width: 480px) {
+  #phaser-game {
+    max-width: 95vw;
+    height: 95vw;
+  }
+
+  /* 为小屏幕优化游戏容器边距 */
+  #phaser-game {
+    margin: 0 auto;
+    padding: 0;
+  }
+}
+
+/* 超小屏幕适配 */
+@media (max-width: 360px) {
+  #phaser-game {
+    max-width: 98vw;
+    height: 98vw;
+  }
+}
+
+/* 移动端性能优化 */
+@media (max-width: 768px) {
+  /* 减少动画和阴影以提升性能 */
+  .game-card {
+    transform: none;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+
+  .game-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+
+  /* 优化滚动性能 */
+  body {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* 减少模糊效果 */
+  .backdrop-blur {
+    backdrop-filter: none;
+    background-color: rgba(0, 0, 0, 0.8);
+  }
+}
+
+/* 移动端触摸优化 */
+@media (hover: none) and (pointer: coarse) {
+  /* 移除悬停效果，优化触摸体验 */
+  button:hover {
+    transform: none;
+  }
+
+  button:active {
+    transform: scale(0.95);
+  }
+
+  /* 增加触摸目标大小 */
+  button, .btn-primary, .btn-secondary {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* 横屏模式优化 */
+@media (orientation: landscape) and (max-height: 600px) {
+  #phaser-game {
+    max-height: 70vh;
+  }
+
+  body {
+    font-size: 14px;
+  }
 }
 
 /* 自定义滚动条 */

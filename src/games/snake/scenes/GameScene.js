@@ -104,31 +104,9 @@ export default class GameScene extends Phaser.Scene {
     // 键盘输入
     this.cursors = this.input.keyboard.createCursorKeys();
 
-    // 触摸控制
-    this.input.on('pointerdown', (pointer) => {
-      const touchX = pointer.x;
-      const touchY = pointer.y;
-      const head = this.snake[0];
-      const headX = head.x * GRID_SIZE + GRID_SIZE / 2;
-      const headY = head.y * GRID_SIZE + GRID_SIZE / 2;
-
-      const dx = touchX - headX;
-      const dy = touchY - headY;
-
-      if (Math.abs(dx) > Math.abs(dy)) {
-        if (dx > 0 && this.direction !== 'LEFT') {
-          this.nextDirection = 'RIGHT';
-        } else if (dx < 0 && this.direction !== 'RIGHT') {
-          this.nextDirection = 'LEFT';
-        }
-      } else {
-        if (dy > 0 && this.direction !== 'UP') {
-          this.nextDirection = 'DOWN';
-        } else if (dy < 0 && this.direction !== 'DOWN') {
-          this.nextDirection = 'UP';
-        }
-      }
-    });
+    // 增强的触摸控制系统
+    this.setupTouchControls();
+    this.setupVirtualControls();
 
     // UI
     this.scoreText = this.add.text(16, 16, '分数: 0', {
@@ -1000,6 +978,165 @@ export default class GameScene extends Phaser.Scene {
       particle.inUse = false;
       particle.active = false;
       particle.gameObject = null;
+    });
+  }
+
+  /**
+   * 设置增强的触摸控制系统
+   */
+  setupTouchControls() {
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchEndX = 0;
+    let touchEndY = 0;
+
+    // 触摸开始事件
+    this.input.on('pointerdown', (pointer) => {
+      touchStartX = pointer.x;
+      touchStartY = pointer.y;
+    });
+
+    // 触摸结束事件
+    this.input.on('pointerup', (pointer) => {
+      touchEndX = pointer.x;
+      touchEndY = pointer.y;
+      this.handleSwipe(touchStartX, touchStartY, touchEndX, touchEndY);
+    });
+  }
+
+  /**
+   * 处理滑动操作
+   */
+  handleSwipe(startX, startY, endX, endY) {
+    const swipeThreshold = 30;
+    const deltaX = endX - startX;
+    const deltaY = endY - startY;
+
+    // 如果滑动距离太短，忽略
+    if (Math.abs(deltaX) < swipeThreshold && Math.abs(deltaY) < swipeThreshold) {
+      return;
+    }
+
+    // 判断滑动方向
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      // 水平滑动
+      if (deltaX > 0 && this.direction !== 'LEFT') {
+        this.nextDirection = 'RIGHT';
+      } else if (deltaX < 0 && this.direction !== 'RIGHT') {
+        this.nextDirection = 'LEFT';
+      }
+    } else {
+      // 垂直滑动
+      if (deltaY > 0 && this.direction !== 'UP') {
+        this.nextDirection = 'DOWN';
+      } else if (deltaY < 0 && this.direction !== 'DOWN') {
+        this.nextDirection = 'UP';
+      }
+    }
+  }
+
+  /**
+   * 设置虚拟控制按钮（移动端专用）
+   */
+  setupVirtualControls() {
+    // 检测是否为移动设备
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    if (!isMobile) {
+      return; // 非移动设备不显示虚拟按钮
+    }
+
+    const buttonSize = 50;
+    const buttonSpacing = 70;
+    const centerX = this.cameras.main.width / 2;
+    const centerY = this.cameras.main.height + 80; // 放置在游戏区域下方
+
+    // 创建虚拟按钮组
+    this.virtualButtons = this.add.group();
+
+    // 上按钮
+    this.upButton = this.add.rectangle(centerX, centerY - buttonSpacing, buttonSize, buttonSize, 0x0284c7)
+      .setInteractive()
+      .setAlpha(0.7)
+      .setStrokeStyle(2, 0xffffff);
+
+    // 下按钮
+    this.downButton = this.add.rectangle(centerX, centerY + buttonSpacing, buttonSize, buttonSize, 0x0284c7)
+      .setInteractive()
+      .setAlpha(0.7)
+      .setStrokeStyle(2, 0xffffff);
+
+    // 左按钮
+    this.leftButton = this.add.rectangle(centerX - buttonSpacing, centerY, buttonSize, buttonSize, 0x0284c7)
+      .setInteractive()
+      .setAlpha(0.7)
+      .setStrokeStyle(2, 0xffffff);
+
+    // 右按钮
+    this.rightButton = this.add.rectangle(centerX + buttonSpacing, centerY, buttonSize, buttonSize, 0x0284c7)
+      .setInteractive()
+      .setAlpha(0.7)
+      .setStrokeStyle(2, 0xffffff);
+
+    // 添加按钮图标（使用文字）
+    this.upText = this.add.text(centerX, centerY - buttonSpacing, '↑', {
+      fontSize: '24px',
+      fill: '#ffffff'
+    }).setOrigin(0.5);
+
+    this.downText = this.add.text(centerX, centerY + buttonSpacing, '↓', {
+      fontSize: '24px',
+      fill: '#ffffff'
+    }).setOrigin(0.5);
+
+    this.leftText = this.add.text(centerX - buttonSpacing, centerY, '←', {
+      fontSize: '24px',
+      fill: '#ffffff'
+    }).setOrigin(0.5);
+
+    this.rightText = this.add.text(centerX + buttonSpacing, centerY, '→', {
+      fontSize: '24px',
+      fill: '#ffffff'
+    }).setOrigin(0.5);
+
+    // 添加按钮事件监听
+    this.upButton.on('pointerdown', () => {
+      if (this.direction !== 'DOWN') this.nextDirection = 'UP';
+      this.highlightButton(this.upButton);
+    });
+
+    this.downButton.on('pointerdown', () => {
+      if (this.direction !== 'UP') this.nextDirection = 'DOWN';
+      this.highlightButton(this.downButton);
+    });
+
+    this.leftButton.on('pointerdown', () => {
+      if (this.direction !== 'RIGHT') this.nextDirection = 'LEFT';
+      this.highlightButton(this.leftButton);
+    });
+
+    this.rightButton.on('pointerdown', () => {
+      if (this.direction !== 'LEFT') this.nextDirection = 'RIGHT';
+      this.highlightButton(this.rightButton);
+    });
+
+    // 将按钮添加到组中
+    this.virtualButtons.addMultiple([this.upButton, this.downButton, this.leftButton, this.rightButton]);
+    this.virtualButtons.addMultiple([this.upText, this.downText, this.leftText, this.rightText]);
+  }
+
+  /**
+   * 高亮按钮反馈
+   */
+  highlightButton(button) {
+    this.tweens.add({
+      targets: button,
+      alpha: 1,
+      scaleX: 1.1,
+      scaleY: 1.1,
+      duration: 100,
+      yoyo: true,
+      ease: 'Power2'
     });
   }
 
