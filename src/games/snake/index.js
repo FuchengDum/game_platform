@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import GameScene from './scenes/GameScene';
+import GameSceneSlim from './scenes/GameSceneSlim';
 import config from './config';
 
 /**
@@ -13,21 +13,23 @@ export default class SnakeGame {
   }
 
   start() {
-    const gameConfig = {
-      type: Phaser.AUTO,
-      parent: this.containerId,
-      ...config.gameConfig,
-      scene: [new GameScene(this.onGameOver)],
-      backgroundColor: '#1a1a2e'
-    };
+    try {
+      const gameConfig = {
+        type: Phaser.AUTO,
+        parent: this.containerId,
+        ...config.gameConfig,
+        scene: [new GameSceneSlim(this.onGameOver)],
+        backgroundColor: '#1a1a2e'
+      };
 
-    this.game = new Phaser.Game(gameConfig);
+      this.game = new Phaser.Game(gameConfig);
+    } catch (error) {
+      throw error;
+    }
   }
 
   destroy() {
     if (this.game) {
-      console.log('🗑️ Destroying Snake game...');
-
       // 停止所有场景
       if (this.game.scene) {
         this.game.scene.scenes.forEach(scene => {
@@ -40,20 +42,18 @@ export default class SnakeGame {
       // 销毁游戏实例（removeCanvas: true 会移除 canvas 元素）
       this.game.destroy(true, false);
       this.game = null;
-
-      console.log('✅ Snake game destroyed');
     }
   }
 
   pause() {
     if (this.game) {
-      this.game.scene.pause('GameScene');
+      this.game.scene.pause('GameSceneSlim');
     }
   }
 
   resume() {
     if (this.game) {
-      this.game.scene.resume('GameScene');
+      this.game.scene.resume('GameSceneSlim');
     }
   }
 }

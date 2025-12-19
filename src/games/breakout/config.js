@@ -16,19 +16,9 @@ export default {
     width: 800,
     height: 600,
     scale: {
-      mode: Phaser.Scale.FIT,
-      autoCenter: Phaser.Scale.CENTER_BOTH,
-      parent: 'phaser-game',
-      width: '100%',
-      height: '100%',
-      min: {
-        width: 320,
-        height: 240
-      },
-      max: {
-        width: 960,
-        height: 720
-      }
+      mode: 'FIT',
+      autoCenter: 'CENTER_BOTH',
+      parent: 'phaser-game'
     },
     physics: {
       default: 'arcade',
@@ -41,10 +31,6 @@ export default {
       pixelArt: false,
       antialias: true,
       powerPreference: 'high-performance'
-    },
-    fps: {
-      target: 60,
-      forceSetTimeOut: true
     }
   }
 };

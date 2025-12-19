@@ -3,15 +3,27 @@
  * 所有游戏都需要在这里注册
  */
 
-// 动态导入游戏配置
-const gameModules = import.meta.glob('../games/*/config.js', { eager: true });
+// 游戏模块缓存
+const gameModuleCache = new Map();
 
-console.log('📦 Game modules found:', Object.keys(gameModules));
+// 预加载Phaser引擎
+let phaserPromise = null;
+const preloadPhaser = () => {
+  if (!phaserPromise) {
+    phaserPromise = import('phaser');
+  }
+  return phaserPromise;
+};
+
+// 立即开始预加载Phaser
+preloadPhaser();
+
+// 预加载游戏配置（小文件，加载快）
+const gameModules = import.meta.glob('../games/*/config.js', { eager: true });
 
 // 解析游戏配置
 const games = Object.entries(gameModules).map(([path, module]) => {
   const gameId = path.match(/\/games\/(.+)\/config\.js$/)[1];
-  console.log(`✅ Registered game: ${gameId}`, module.default);
   return {
     id: gameId,
     ...module.default,
@@ -46,27 +58,36 @@ export const getAllCategories = () => {
 };
 
 /**
- * 动态加载游戏主类
+ * 动态加载游戏主类 - 缓存优化版本
  */
 export const loadGame = async (gameId) => {
   try {
-    // 使用 Vite 的 glob 导入来支持动态加载
-    const modules = import.meta.glob('../games/*/index.js');
-    const modulePath = `../games/${gameId}/index.js`;
-
-    console.log('📂 Available modules:', Object.keys(modules));
-    console.log('🔍 Looking for:', modulePath);
-
-    if (!modules[modulePath]) {
-      throw new Error(`Game module not found: ${gameId}`);
+    // 检查缓存
+    if (gameModuleCache.has(gameId)) {
+      return gameModuleCache.get(gameId);
     }
 
-    console.log('⏳ Loading module...');
-    const module = await modules[modulePath]();
-    console.log('✅ Module loaded:', module);
-    return module.default;
+    // 并行加载Phaser和游戏模块
+    const [phaser, gameModule] = await Promise.all([
+      preloadPhaser(),
+      (async () => {
+        const modules = import.meta.glob('../games/*/index.js');
+        const modulePath = `../games/${gameId}/index.js`;
+
+        if (!modules[modulePath]) {
+          throw new Error(`Game module not found: ${gameId}`);
+        }
+
+        return await modules[modulePath]();
+      })()
+    ]);
+
+    // 缓存模块
+    gameModuleCache.set(gameId, gameModule.default);
+
+    return gameModule.default;
   } catch (error) {
-    console.error(`❌ Failed to load game: ${gameId}`, error);
+    console.error(`❌ 加载游戏失败: ${gameId}`, error.message);
     return null;
   }
 };

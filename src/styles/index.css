@@ -36,18 +36,19 @@
   background-color: #1a1a2e;
   width: 100%;
   max-width: 600px;
-  aspect-ratio: 1/1;
-  height: auto;
+  height: 600px;
   margin: 0 auto;
   position: relative;
+  /* 确保容器在初始化时具有明确的尺寸 */
+  min-height: 600px;
+  display: block;
 }
 
 #phaser-game canvas {
-  display: block;
+  display: block !important;
   width: 100% !important;
   height: 100% !important;
-  max-width: 100% !important;
-  max-height: 100% !important;
+  /* 防止画布变形 */
   object-fit: contain;
 }
 
@@ -55,8 +56,10 @@
 @media (max-width: 768px) {
   #phaser-game {
     max-width: 90vw;
+    max-height: 90vw;
+    width: 90vw;
     height: 90vw;
-    aspect-ratio: 1/1;
+    min-height: 90vw;
   }
 
   /* 调整游戏画布缩放 */
@@ -73,13 +76,11 @@
 @media (max-width: 480px) {
   #phaser-game {
     max-width: 95vw;
+    max-height: 95vw;
+    width: 95vw;
     height: 95vw;
-  }
-
-  /* 为小屏幕优化游戏容器边距 */
-  #phaser-game {
+    min-height: 95vw;
     margin: 0 auto;
-    padding: 0;
   }
 }
 
@@ -87,7 +88,31 @@
 @media (max-width: 360px) {
   #phaser-game {
     max-width: 98vw;
+    max-height: 98vw;
+    width: 98vw;
     height: 98vw;
+    min-height: 98vw;
+  }
+}
+
+/* 打砖块游戏特殊适配 */
+#phaser-game[data-game="breakout"] {
+  aspect-ratio: 4/3;
+}
+
+@media (max-width: 768px) {
+  #phaser-game[data-game="breakout"] {
+    width: 90vw;
+    height: 67.5vw; /* 90vw * 3/4 */
+    max-height: 90vh;
+  }
+}
+
+@media (max-width: 480px) {
+  #phaser-game[data-game="breakout"] {
+    width: 95vw;
+    height: 71.25vw; /* 95vw * 3/4 */
+    max-height: 85vh;
   }
 }
 
@@ -139,6 +164,10 @@
 @media (orientation: landscape) and (max-height: 600px) {
   #phaser-game {
     max-height: 70vh;
+  }
+
+  #phaser-game[data-game="breakout"] {
+    max-height: 60vh;
   }
 
   body {

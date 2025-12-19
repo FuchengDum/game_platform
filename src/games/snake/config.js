@@ -16,19 +16,12 @@ export default {
     width: 600,
     height: 600,
     scale: {
-      mode: Phaser.Scale.FIT,
-      autoCenter: Phaser.Scale.CENTER_BOTH,
-      parent: 'phaser-game',
-      width: '100%',
-      height: '100%',
-      min: {
-        width: 300,
-        height: 300
-      },
-      max: {
-        width: 800,
-        height: 800
-      }
+      mode: 'FIT',
+      autoCenter: 'CENTER_BOTH',
+      // 移除 parent 配置，让容器动态设置
+      width: 600,
+      height: 600,
+      expandParent: false
     },
     physics: {
       default: 'arcade',
@@ -42,9 +35,6 @@ export default {
       antialias: true,
       powerPreference: 'high-performance'
     },
-    fps: {
-      target: 60,
-      forceSetTimeOut: true
-    }
+    banner: false
   }
 };

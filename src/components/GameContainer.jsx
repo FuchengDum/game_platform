@@ -49,8 +49,11 @@ function GameContainer() {
   const containerRef = useRef(null);
   const [gameConfig, setGameConfig] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [gameLoading, setGameLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isPaused, setIsPaused] = useState(false);
+  const [isGameOver, setIsGameOver] = useState(false);
+  const [finalScore, setFinalScore] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const updateGameRecord = useGameStore((state) => state.updateGameRecord);
 
@@ -112,6 +115,7 @@ function GameContainer() {
 
   // 等待容器渲染后再初始化游戏
   useEffect(() => {
+    // 确保基础条件满足
     if (isLoading || !gameConfig || !containerRef.current) {
       return;
     }
@@ -120,9 +124,9 @@ function GameContainer() {
 
     const initGame = async () => {
       try {
-        console.log('🎮 Loading game:', gameId);
+        setGameLoading(true);
+
         const GameClass = await loadGame(gameId);
-        console.log('✅ Game class loaded:', GameClass);
 
         if (!GameClass || !mounted) {
           return;
@@ -130,24 +134,19 @@ function GameContainer() {
 
         // 游戏结束回调
         const handleGameOver = (score) => {
-          console.log('🏁 Game over, score:', score);
           updateGameRecord(gameId, score);
-          setTimeout(() => {
-            navigate('/');
-          }, 1000);
+          setIsGameOver(true);
+          setFinalScore(score);
         };
-
-        console.log('✅ Container found:', containerRef.current);
-        console.log('🎯 Creating game instance...');
 
         gameRef.current = new GameClass('phaser-game', handleGameOver);
         gameRef.current.start();
 
-        console.log('✅ Game started successfully');
+        setGameLoading(false);
       } catch (err) {
-        console.error('❌ 游戏加载失败:', err);
         if (mounted) {
           setError('游戏加载失败: ' + err.message);
+          setGameLoading(false);
         }
       }
     };
@@ -156,7 +155,6 @@ function GameContainer() {
 
     return () => {
       mounted = false;
-      console.log('🔄 Cleaning up game...');
       if (gameRef.current) {
         try {
           gameRef.current.destroy();
@@ -179,11 +177,36 @@ function GameContainer() {
     setIsPaused(!isPaused);
   };
 
-  const handleRestart = () => {
+  const handleRestart = async () => {
     if (gameRef.current) {
       gameRef.current.destroy();
+      gameRef.current = null;
     }
-    window.location.reload();
+    // 重置游戏结束状态
+    setIsGameOver(false);
+    setFinalScore(0);
+    setIsPaused(false);
+    // 重新初始化游戏
+    setGameLoading(true);
+
+    try {
+      const GameClass = await loadGame(gameId);
+
+      if (containerRef.current && gameConfig && GameClass) {
+        const handleGameOver = (score) => {
+          updateGameRecord(gameId, score);
+          setIsGameOver(true);
+          setFinalScore(score);
+        };
+
+        gameRef.current = new GameClass('phaser-game', handleGameOver);
+        gameRef.current.start();
+      }
+    } catch (err) {
+      setError('重新开始游戏失败: ' + err.message);
+    }
+
+    setGameLoading(false);
   };
 
   const handleExit = () => {
@@ -208,13 +231,24 @@ function GameContainer() {
       <div className="container mx-auto px-4 py-16 text-center">
         <div className="text-6xl mb-4 animate-bounce">🎮</div>
         <h2 className="text-3xl font-bold mb-4">加载中...</h2>
-        <p className="text-gray-400">正在启动游戏</p>
+        <p className="text-gray-400">正在读取游戏配置</p>
       </div>
     );
   }
 
   return (
     <div className="w-full max-w-4xl mx-auto px-2 sm:px-4 py-2 sm:py-4">
+      {/* 游戏加载遮罩 */}
+      {gameLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-game-card rounded-xl p-8 text-center">
+            <div className="text-6xl mb-4 animate-pulse">⚡</div>
+            <h2 className="text-3xl font-bold mb-4">启动游戏中...</h2>
+            <p className="text-gray-400">正在加载游戏资源，请稍候</p>
+          </div>
+        </div>
+      )}
+
       {/* 游戏容器 - 移动端优化 */}
       <div className="space-y-3 sm:space-y-4">
         {/* 游戏信息和控制栏 - 移动端优化 */}
@@ -321,6 +355,7 @@ function GameContainer() {
             id="phaser-game"
             ref={containerRef}
             className="w-full max-w-full sm:max-w-[600px]"
+            data-game={gameId}
           />
         </div>
 
@@ -330,8 +365,27 @@ function GameContainer() {
         )}
       </div>
 
+      {/* 游戏结束遮罩 */}
+      {isGameOver && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-game-card rounded-xl p-8 text-center">
+            <div className="text-6xl mb-4">🏁</div>
+            <h3 className="text-3xl font-bold mb-2">游戏结束</h3>
+            <p className="text-xl text-gray-300 mb-6">得分: {finalScore}</p>
+            <div className="flex gap-4 justify-center">
+              <button onClick={handleRestart} className="btn-primary">
+                重新开始
+              </button>
+              <button onClick={handleExit} className="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200">
+                返回大厅
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 暂停遮罩 */}
-      {isPaused && (
+      {isPaused && !isGameOver && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-game-card rounded-xl p-8 text-center">
             <div className="text-6xl mb-4">⏸️</div>
