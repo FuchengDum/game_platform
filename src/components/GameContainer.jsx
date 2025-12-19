@@ -3,44 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getGameById, loadGame } from '../utils/gameRegistry';
 import useGameStore from '../store/gameStore';
 
-// 移动端虚拟控制按钮组件
-const MobileControlButtons = ({ onControl }) => {
-  return (
-    <div className="flex flex-col items-center gap-2 sm:hidden mt-4">
-      <button
-        onClick={() => onControl('UP')}
-        className="w-14 h-14 bg-primary-500 hover:bg-primary-600 active:bg-primary-700 rounded-full flex items-center justify-center text-2xl text-white shadow-lg transition-all active:scale-95"
-        aria-label="向上"
-      >
-        ↑
-      </button>
-      <div className="flex gap-2">
-        <button
-          onClick={() => onControl('LEFT')}
-          className="w-14 h-14 bg-primary-500 hover:bg-primary-600 active:bg-primary-700 rounded-full flex items-center justify-center text-2xl text-white shadow-lg transition-all active:scale-95"
-          aria-label="向左"
-        >
-          ←
-        </button>
-        <button
-          onClick={() => onControl('DOWN')}
-          className="w-14 h-14 bg-primary-500 hover:bg-primary-600 active:bg-primary-700 rounded-full flex items-center justify-center text-2xl text-white shadow-lg transition-all active:scale-95"
-          aria-label="向下"
-        >
-          ↓
-        </button>
-        <button
-          onClick={() => onControl('RIGHT')}
-          className="w-14 h-14 bg-primary-500 hover:bg-primary-600 active:bg-primary-700 rounded-full flex items-center justify-center text-2xl text-white shadow-lg transition-all active:scale-95"
-          aria-label="向右"
-        >
-          →
-        </button>
-      </div>
-      <p className="text-xs text-gray-400 mt-2">使用方向键或滑动屏幕控制</p>
-    </div>
-  );
-};
 
 function GameContainer() {
   const { gameId } = useParams();
@@ -70,19 +32,7 @@ function GameContainer() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // 处理移动端控制
-  const handleMobileControl = (direction) => {
-    if (gameRef.current && gameRef.current.scene && gameRef.current.scene.scenes.length > 0) {
-      const gameScene = gameRef.current.scene.scenes[0];
-
-      // 直接访问snakeController设置方向
-      if (gameScene.snakeController && gameScene.snakeController.setDirection) {
-        console.log('🎮 移动端控制:', direction);
-        gameScene.snakeController.setDirection(direction);
-      }
-    }
-  };
-
+  
   // 先加载游戏配置和类
   useEffect(() => {
     const config = getGameById(gameId);
@@ -219,7 +169,7 @@ function GameContainer() {
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-2 sm:px-4 py-2 sm:py-4">
+    <div className="w-full max-w-4xl mx-auto px-2 sm:px-4 py-0 sm:py-4 sm:mt-4">
       {/* 游戏加载遮罩 */}
       {gameLoading && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
@@ -232,9 +182,9 @@ function GameContainer() {
       )}
 
       {/* 游戏容器 - 移动端优化 */}
-      <div className="space-y-3 sm:space-y-4">
+      <div className="space-y-2 sm:space-y-4">
         {/* 游戏信息和控制栏 - 移动端优化 */}
-        <div className="w-full bg-game-card rounded-lg px-3 py-2 sm:px-4 sm:py-2.5">
+        <div className="w-full bg-game-card rounded-lg px-2 py-1 sm:px-4 sm:py-2.5">
           {/* 桌面端布局 */}
           <div className="hidden sm:flex items-center justify-between">
             {/* 左侧：游戏信息 */}
@@ -286,7 +236,7 @@ function GameContainer() {
           {/* 移动端布局 */}
           <div className="sm:hidden">
             {/* 游戏信息 - 紧凑布局 */}
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
                 <span className="text-xl">{gameConfig.icon}</span>
                 <div>
@@ -332,7 +282,7 @@ function GameContainer() {
         </div>
 
         {/* Phaser 游戏画面 - 响应式容器 */}
-        <div className="flex justify-center">
+        <div className="flex justify-center -mt-2 sm:mt-0">
           <div
             id="phaser-game"
             ref={containerRef}
@@ -341,11 +291,7 @@ function GameContainer() {
           />
         </div>
 
-        {/* 移动端虚拟控制按钮 */}
-        {isMobile && gameId === 'snake' && (
-          <MobileControlButtons onControl={handleMobileControl} />
-        )}
-      </div>
+              </div>
 
       {/* 游戏结束遮罩 */}
       {isGameOver && (
