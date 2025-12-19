@@ -28,7 +28,13 @@ export default class GameSceneSlim extends Phaser.Scene {
     // 移动端触摸控制
     this.touchStartX = 0;
     this.touchStartY = 0;
-    this.swipeThreshold = 30;
+    this.touchStartTime = 0;
+    this.isSwipe = false;
+    this.swipeThreshold = 12; // 降低滑动阈值，提高敏感度
+    this.touchDebounce = 50; // 减少节流时间，提高响应性
+    this.lastTouchTime = 0;
+    this.minSwipeVelocity = 0.3; // 最小滑动速度
+    this.maxTouchDuration = 500; // 最大触摸时长
   }
 
   /**
@@ -103,48 +109,238 @@ export default class GameSceneSlim extends Phaser.Scene {
   }
 
   /**
-   * 设置触摸控制
+   * 设置触摸控制 - 高性能版本
    */
   setupTouchControls() {
+    // 触摸状态
+    this.resetTouchState();
+
     // 触摸开始
     this.input.on('pointerdown', (pointer) => {
+      this.touchStartTime = Date.now();
       this.touchStartX = pointer.x;
       this.touchStartY = pointer.y;
+      this.lastX = pointer.x;
+      this.lastY = pointer.y;
+      this.isSwipe = false;
+      this.totalDistance = 0;
     });
 
-    // 触摸结束（检测滑动）
-    this.input.on('pointerup', (pointer) => {
-      const deltaX = pointer.x - this.touchStartX;
-      const deltaY = pointer.y - this.touchStartY;
+    // 触摸移动 - 实时滑动检测
+    this.input.on('pointermove', (pointer) => {
+      if (this.touchStartTime === 0) return;
 
-      if (Math.abs(deltaX) > this.swipeThreshold || Math.abs(deltaY) > this.swipeThreshold) {
-        this.handleSwipe(this.touchStartX, this.touchStartY, pointer.x, pointer.y);
+      const deltaX = pointer.x - this.lastX;
+      const deltaY = pointer.y - this.lastY;
+      const moveDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+      this.lastX = pointer.x;
+      this.lastY = pointer.y;
+      this.totalDistance += moveDistance;
+
+      // 如果移动距离足够，实时处理滑动方向
+      if (this.totalDistance > this.swipeThreshold && !this.isSwipe) {
+        this.isSwipe = true;
+        this.processRealTimeSwipe(pointer.x - this.touchStartX, pointer.y - this.touchStartY);
+      }
+    });
+
+    // 触摸结束
+    this.input.on('pointerup', (pointer) => {
+      const now = Date.now();
+      const touchDuration = now - this.touchStartTime;
+
+      // 节流控制 - 更短的节流时间
+      if (now - this.lastTouchTime < this.touchDebounce) {
+        this.resetTouchState();
+        return;
+      }
+      this.lastTouchTime = now;
+
+      // 计算最终滑动数据
+      const finalDeltaX = pointer.x - this.touchStartX;
+      const finalDeltaY = pointer.y - this.touchStartY;
+      const finalDistance = Math.sqrt(finalDeltaX * finalDeltaX + finalDeltaY * finalDeltaY);
+
+      // 计算滑动速度
+      const velocity = finalDistance / Math.max(touchDuration, 1);
+
+      // 判断操作类型
+      if (this.isSwipe || (finalDistance > this.swipeThreshold && velocity > this.minSwipeVelocity)) {
+        // 处理滑动 - 优先使用已经处理过的结果
+        if (!this.isSwipe) {
+          this.processRealTimeSwipe(finalDeltaX, finalDeltaY);
+        }
+      } else {
+        // 处理点击
+        this.handleTouch(pointer.x, pointer.y);
+      }
+
+      this.resetTouchState();
+    });
+  }
+
+  /**
+   * 重置触摸状态
+   */
+  resetTouchState() {
+    this.touchStartTime = 0;
+    this.touchStartX = 0;
+    this.touchStartY = 0;
+    this.lastX = 0;
+    this.lastY = 0;
+    this.isSwipe = false;
+    this.totalDistance = 0;
+  }
+
+  /**
+   * 处理点击事件
+   */
+  handleTouch(x, y) {
+    const centerX = this.cameras.main.width / 2;
+    const centerY = this.cameras.main.height / 2;
+    const dx = x - centerX;
+    const dy = y - centerY;
+
+    // 添加触觉反馈（如果支持）
+    if (navigator.vibrate) {
+      navigator.vibrate(50); // 50ms短振动
+    }
+
+    // 创建点击效果反馈
+    this.createTouchEffect(x, y);
+
+    // 根据点击位置设置方向
+    if (Math.abs(dx) > Math.abs(dy)) {
+      // 水平方向
+      if (dx > 0) {
+        this.snakeController.setDirection('RIGHT');
+      } else {
+        this.snakeController.setDirection('LEFT');
+      }
+    } else {
+      // 垂直方向
+      if (dy > 0) {
+        this.snakeController.setDirection('DOWN');
+      } else {
+        this.snakeController.setDirection('UP');
+      }
+    }
+  }
+
+  /**
+   * 创建点击效果反馈
+   */
+  createTouchEffect(x, y) {
+    // 创建临时圆形反馈效果
+    const effect = this.add.graphics();
+    effect.fillStyle(0xffffff, 0.3);
+    effect.fillCircle(x, y, 15);
+
+    // 添加渐隐动画
+    this.tweens.add({
+      targets: effect,
+      alpha: 0,
+      scale: 1.5,
+      duration: 200,
+      ease: 'Power2',
+      onComplete: () => {
+        effect.destroy();
       }
     });
   }
 
   /**
-   * 处理滑动操作
+   * 实时处理滑动方向
    */
-  handleSwipe(startX, startY, endX, endY) {
-    const deltaX = endX - startX;
-    const deltaY = endY - startY;
+  processRealTimeSwipe(deltaX, deltaY) {
+    // 添加触觉反馈
+    if (navigator.vibrate) {
+      navigator.vibrate(30); // 更短的振动，更快反馈
+    }
 
+    // 创建滑动效果
+    this.createSwipeEffect(this.touchStartX + deltaX/2, this.touchStartY + deltaY/2, deltaX, deltaY);
+
+    // 判断主要滑动方向
     if (Math.abs(deltaX) > Math.abs(deltaY)) {
-      // 水平滑动
+      // 水平滑动为主
       if (deltaX > 0) {
         this.snakeController.setDirection('RIGHT');
       } else {
         this.snakeController.setDirection('LEFT');
       }
     } else {
-      // 垂直滑动
+      // 垂直滑动为主
       if (deltaY > 0) {
         this.snakeController.setDirection('DOWN');
       } else {
         this.snakeController.setDirection('UP');
       }
     }
+  }
+
+  /**
+   * 创建滑动效果反馈
+   */
+  createSwipeEffect(x, y, deltaX, deltaY) {
+    // 计算滑动角度
+    const angle = Math.atan2(deltaY, deltaX);
+
+    // 创建滑动轨迹效果
+    const effect = this.add.graphics();
+    effect.lineStyle(3, 0xffffff, 0.4);
+    effect.beginPath();
+    effect.moveTo(x - deltaX/4, y - deltaY/4);
+    effect.lineTo(x + deltaX/4, y + deltaY/4);
+    effect.strokePath();
+
+    // 创建箭头指示方向
+    const arrowLength = 15;
+    const arrowAngle = 0.5;
+    const endX = x + deltaX/4;
+    const endY = y + deltaY/4;
+
+    effect.lineStyle(2, 0xffffff, 0.6);
+    effect.beginPath();
+    effect.moveTo(endX, endY);
+    effect.lineTo(
+      endX - arrowLength * Math.cos(angle - arrowAngle),
+      endY - arrowLength * Math.sin(angle - arrowAngle)
+    );
+    effect.moveTo(endX, endY);
+    effect.lineTo(
+      endX - arrowLength * Math.cos(angle + arrowAngle),
+      endY - arrowLength * Math.sin(angle + arrowAngle)
+    );
+    effect.strokePath();
+
+    // 渐隐动画
+    this.tweens.add({
+      targets: effect,
+      alpha: 0,
+      duration: 300,
+      ease: 'Power2',
+      onComplete: () => {
+        effect.destroy();
+      }
+    });
+  }
+
+  /**
+   * 处理滑动操作 - 保留兼容性
+   */
+  handleSwipe(startX, startY, endX, endY) {
+    const deltaX = endX - startX;
+    const deltaY = endY - startY;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    // 只有当滑动距离足够时才处理
+    if (distance < this.swipeThreshold) {
+      return;
+    }
+
+    this.processRealTimeSwipe(deltaX, deltaY);
   }
 
   /**
