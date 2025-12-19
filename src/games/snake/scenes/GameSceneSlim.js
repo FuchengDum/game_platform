@@ -49,8 +49,9 @@ export default class GameSceneSlim extends Phaser.Scene {
    */
   create() {
     // 初始化游戏模块
-    this.snakeController = new SnakeController();
     this.gameRenderer = new GameRenderer(this);
+    const gridConfig = this.gameRenderer.getGridConfig();
+    this.snakeController = new SnakeController(gridConfig);
     this.gameLogic = new GameLogic();
 
     // 初始化各个模块
@@ -59,7 +60,7 @@ export default class GameSceneSlim extends Phaser.Scene {
     this.gameRenderer.init();
 
     // 生成第一个食物
-    this.food = this.gameLogic.generateRandomFood(this.snakeController.getSnake());
+    this.food = this.gameLogic.generateRandomFood(this.snakeController.getSnake(), gridConfig.gridCount);
 
     // 设置控制
     this.setupKeyboardControls();
@@ -71,12 +72,6 @@ export default class GameSceneSlim extends Phaser.Scene {
 
     // 初始渲染游戏画面
     this.render();
-
-    // 添加调试文本
-    this.add.text(10, 10, 'Snake Game Running', {
-      fontSize: '16px',
-      color: '#ffffff'
-    });
   }
 
   /**
@@ -409,7 +404,8 @@ export default class GameSceneSlim extends Phaser.Scene {
     if (this.gameLogic.checkFoodCollision(head, this.food)) {
       shouldGrow = true;
       this.snakeController.eatFood();
-      this.food = this.gameLogic.generateRandomFood(this.snakeController.getSnake());
+      const gridConfig = this.snakeController.getGridSize();
+      this.food = this.gameLogic.generateRandomFood(this.snakeController.getSnake(), gridConfig.gridCount);
     }
 
     // 如果没有吃到食物，移除蛇尾
@@ -426,7 +422,11 @@ export default class GameSceneSlim extends Phaser.Scene {
 
     // 只在游戏未结束时渲染
     if (!this.gameLogic.getGameState().isGameOver) {
-      this.gameRenderer.render(snake, this.food, this.isBlinking);
+      // 获取游戏统计信息和状态
+      const gameStats = this.gameLogic.getGameStats(this.snakeController);
+      const gameState = this.gameLogic.getGameState();
+
+      this.gameRenderer.render(snake, this.food, this.isBlinking, gameStats, gameState);
     }
   }
 

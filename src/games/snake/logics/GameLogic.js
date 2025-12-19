@@ -2,15 +2,13 @@
  * 游戏逻辑管理器
  * 负责游戏的核心逻辑，包括碰撞检测、游戏循环等
  */
-const GRID_WIDTH = 30;
-const GRID_HEIGHT = 30;
-
 export class GameLogic {
   constructor() {
     this.score = 0;
     this.isGameOver = false;
     this.isPaused = false;
     this.highScore = localStorage.getItem('snakeHighScore') || 0;
+    this.gridCount = 30; // 默认值，会在运行时更新
   }
 
   /**
@@ -25,12 +23,13 @@ export class GameLogic {
   /**
    * 生成随机食物位置
    */
-  generateRandomFood(snake) {
+  generateRandomFood(snake, gridCount = 30) {
+    this.gridCount = gridCount; // 更新网格数量
     let food;
     do {
       food = {
-        x: Math.floor(Math.random() * 30),
-        y: Math.floor(Math.random() * 30)
+        x: Math.floor(Math.random() * gridCount),
+        y: Math.floor(Math.random() * gridCount)
       };
     } while (this.isFoodOnSnake(food, snake));
 
@@ -63,7 +62,8 @@ export class GameLogic {
    * 检查游戏是否结束
    */
   checkGameOver(snakeController) {
-    return snakeController.checkWallCollision(30, 30) ||
+    const gridSize = snakeController.getGridSize();
+    return snakeController.checkWallCollision(gridSize.width, gridSize.height) ||
            snakeController.checkSelfCollision();
   }
 
@@ -102,7 +102,8 @@ export class GameLogic {
       score: this.score,
       highScore: this.highScore,
       isGameOver: this.isGameOver,
-      isPaused: this.isPaused
+      isPaused: this.isPaused,
+      isNewRecord: this.score >= this.highScore && this.score > 0
     };
   }
 

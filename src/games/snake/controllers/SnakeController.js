@@ -2,11 +2,12 @@
  * 贪吃蛇控制器
  * 负责处理蛇的移动逻辑和方向控制
  */
-const GRID_WIDTH = 30;
-const GRID_HEIGHT = 30;
-
 export class SnakeController {
-  constructor() {
+  constructor(gridConfig = { gridCount: 30, isDynamic: false }) {
+    this.gridConfig = gridConfig;
+    this.gridWidth = gridConfig.gridCount;
+    this.gridHeight = gridConfig.gridCount;
+
     this.snake = [];
     this.direction = 'RIGHT';
     this.nextDirection = 'RIGHT';
@@ -29,10 +30,14 @@ export class SnakeController {
    * 初始化蛇
    */
   init() {
+    // 根据网格大小设置蛇的初始位置（居中）
+    const centerX = Math.floor(this.gridWidth / 2);
+    const centerY = Math.floor(this.gridHeight / 2);
+
     this.snake = [
-      { x: 15, y: 15 },
-      { x: 14, y: 15 },
-      { x: 13, y: 15 }
+      { x: centerX, y: centerY },
+      { x: centerX - 1, y: centerY },
+      { x: centerX - 2, y: centerY }
     ];
     this.direction = 'RIGHT';
     this.nextDirection = 'RIGHT';
@@ -104,7 +109,7 @@ export class SnakeController {
   /**
    * 检查是否撞墙
    */
-  checkWallCollision(gridWidth, gridHeight) {
+  checkWallCollision(gridWidth = this.gridWidth, gridHeight = this.gridHeight) {
     const head = this.snake[0];
     return head.x < 0 || head.x >= gridWidth || head.y < 0 || head.y >= gridHeight;
   }
@@ -150,7 +155,7 @@ export class SnakeController {
   /**
    * 检查指定位置是否会发生碰撞
    */
-  checkCollisionAt(newHead, gridWidth = 30, gridHeight = 30) {
+  checkCollisionAt(newHead, gridWidth = this.gridWidth, gridHeight = this.gridHeight) {
     // 检查墙壁碰撞
     if (newHead.x < 0 || newHead.x >= gridWidth ||
         newHead.y < 0 || newHead.y >= gridHeight) {
@@ -165,6 +170,18 @@ export class SnakeController {
     }
 
     return false;
+  }
+
+  /**
+   * 获取当前网格尺寸
+   */
+  getGridSize() {
+    return {
+      width: this.gridWidth,
+      height: this.gridHeight,
+      gridCount: this.gridConfig.gridCount,
+      isDynamic: this.gridConfig.isDynamic
+    };
   }
 
   /**
