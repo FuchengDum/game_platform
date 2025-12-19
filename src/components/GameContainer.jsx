@@ -74,29 +74,11 @@ function GameContainer() {
   const handleMobileControl = (direction) => {
     if (gameRef.current && gameRef.current.scene && gameRef.current.scene.scenes.length > 0) {
       const gameScene = gameRef.current.scene.scenes[0];
-      // 检查是否有控制方法
-      if (gameScene.handleSwipe) {
-        let startX = gameScene.cameras.main.width / 2;
-        let startY = gameScene.cameras.main.height / 2;
-        let endX = startX;
-        let endY = startY;
 
-        switch (direction) {
-          case 'UP':
-            endY -= 100;
-            break;
-          case 'DOWN':
-            endY += 100;
-            break;
-          case 'LEFT':
-            endX -= 100;
-            break;
-          case 'RIGHT':
-            endX += 100;
-            break;
-        }
-
-        gameScene.handleSwipe(startX, startY, endX, endY);
+      // 直接访问snakeController设置方向
+      if (gameScene.snakeController && gameScene.snakeController.setDirection) {
+        console.log('🎮 移动端控制:', direction);
+        gameScene.snakeController.setDirection(direction);
       }
     }
   };
