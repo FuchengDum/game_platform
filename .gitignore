@@ -35,6 +35,11 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+audit.log
 
 # 其他
 .cache
+.spec-workflow
+test-*.html
+*-test.html
+debug-*.html

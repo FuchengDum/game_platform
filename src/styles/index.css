@@ -54,23 +54,37 @@
 
 /* 移动端适配 */
 @media (max-width: 768px) {
+  /* 只在游戏页面应用特殊样式 */
+  body:has(#phaser-game) {
+    overscroll-behavior: none;
+    overflow: hidden;
+    touch-action: none;
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    width: 100vw;
+  }
+
   #phaser-game {
     max-width: 100vw;
-    max-height: calc(100vh - 80px); /* 进一步减少顶部空间 */
+    max-height: calc(100vh - 60px); /* 最小化顶部空间，完全填充屏幕 */
     width: 100vw;
-    height: calc(100vh - 80px);
-    min-height: 300px;
-    margin: 0 auto;
+    height: calc(100vh - 60px);
+    min-height: calc(100vh - 60px);
+    margin: 0;
     /* 防止页面滚动和晃动 */
     position: relative;
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
     -webkit-touch-callout: none;
+    /* 确保容器完全填充可用空间 */
+    display: block;
+    object-fit: contain;
   }
 
   /* 调整游戏画布缩放 */
-  #phaser-game canvas {
+  body:has(#phaser-game) #phaser-game canvas {
     max-width: 100% !important;
     max-height: 100% !important;
     width: 100% !important;
@@ -78,45 +92,50 @@
     object-fit: contain;
     touch-action: none;
     user-select: none;
+    /* 确保画布完全填充容器 */
+    display: block;
+    margin: 0;
+    padding: 0;
   }
 
-  /* 防止页面滚动 */
-  body {
-    overscroll-behavior: none;
-    overflow-x: hidden;
-    touch-action: pan-y pinch-zoom;
-  }
-
-  /* 游戏容器防止滚动 */
-  #phaser-game,
-  #phaser-game * {
+  /* 游戏容器防止滚动 - 只在游戏页面 */
+  body:has(#phaser-game) #phaser-game,
+  body:has(#phaser-game) #phaser-game * {
     touch-action: none;
+  }
+
+  /* 确保游戏页面完全填充 */
+  html:has(body > div > #phaser-game) {
+    height: 100vh;
+    overflow: hidden;
   }
 }
 
 /* 小屏幕适配 */
 @media (max-width: 480px) {
-  #phaser-game {
+  body:has(#phaser-game) #phaser-game {
     max-width: 100vw;
-    max-height: calc(100vh - 70px); /* 极紧凑的顶部空间 */
+    max-height: calc(100vh - 50px); /* 极紧凑的顶部空间 */
     width: 100vw;
-    height: calc(100vh - 70px);
-    min-height: 280px;
-    margin: 0 auto;
+    height: calc(100vh - 50px);
+    min-height: calc(100vh - 50px);
+    margin: 0;
     touch-action: none;
+    object-fit: contain;
   }
 }
 
 /* 超小屏幕适配 */
 @media (max-width: 360px) {
-  #phaser-game {
+  body:has(#phaser-game) #phaser-game {
     max-width: 100vw;
-    max-height: calc(100vh - 60px); /* 最小化顶部空间 */
+    max-height: calc(100vh - 40px); /* 最小化顶部空间 */
     width: 100vw;
-    height: calc(100vh - 60px);
-    min-height: 260px;
-    margin: 0 auto;
+    height: calc(100vh - 40px);
+    min-height: calc(100vh - 40px);
+    margin: 0;
     touch-action: none;
+    object-fit: contain;
   }
 }
 

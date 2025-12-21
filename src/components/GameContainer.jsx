@@ -182,7 +182,7 @@ function GameContainer() {
       )}
 
       {/* 游戏容器 - 移动端优化 */}
-      <div className="space-y-2 sm:space-y-4">
+      <div className="space-y-0 sm:space-y-4">
         {/* 游戏信息和控制栏 - 移动端优化 */}
         <div className="w-full bg-game-card rounded-lg px-2 py-1 sm:px-4 sm:py-2.5">
           {/* 桌面端布局 */}
@@ -282,7 +282,7 @@ function GameContainer() {
         </div>
 
         {/* Phaser 游戏画面 - 响应式容器 */}
-        <div className="flex justify-center -mt-2 sm:mt-0">
+        <div className="flex justify-center mt-0 sm:mt-0">
           <div
             id="phaser-game"
             ref={containerRef}
