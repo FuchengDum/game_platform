@@ -45,3 +45,7 @@ test-*.html
 debug-*.html
 safari-debug.html
 safari-joystick-only.html
+FIX_SUMMARY.md
+mobile-debug-enhanced.html
+mobile-debug.html
+TESTING_GUIDE.md

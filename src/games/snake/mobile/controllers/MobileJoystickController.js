@@ -24,19 +24,19 @@ export class MobileJoystickController {
     this.defaultConfig = {
       baseX: 100,
       baseY: -100,
-      baseRadius: 60,
-      stickRadius: 40,
-      maxDistance: 80,
+      baseRadius: 80,  // 增大底座半径
+      stickRadius: 50, // 增大手柄半径
+      maxDistance: 100, // 增大移动距离
       showBase: true,
       showStick: true,
       opacity: {
-        base: 0.3,
-        stick: 0.8,
+        base: 0.6,   // 提高底座透明度
+        stick: 0.9,  // 提高手柄透明度
         active: 1.0
       },
       colors: {
-        base: 0x666666,
-        stick: 0x999999,
+        base: 0x888888,   // 使用更亮的底座颜色
+        stick: 0xaaaaaa,  // 使用更亮的手柄颜色
         active: 0x00ff00
       },
       animationDuration: 150
@@ -95,10 +95,88 @@ export class MobileJoystickController {
 
     // 移动设备适配：调整摇杆位置到更适合触摸的区域
     if (deviceInfo.isMobile) {
+      // 检测横屏模式
+      const isLandscape = width > height;
+
       // 在移动设备上，将摇杆放在左下角更容易操作的位置
-      const minMargin = Math.max(this.config.baseRadius + 20, 120); // 最小边距
-      this.config.baseX = Math.max(minMargin, this.config.baseX);
-      this.config.baseY = Math.min(height - minMargin, this.config.baseY);
+      // 根据屏幕尺寸和方向动态调整摇杆大小和位置
+      let screenMinDimension, scaleFactor, minMargin;
+
+      if (isLandscape) {
+        // 横屏模式：使用较小维度作为基准，增大比例系数
+        screenMinDimension = Math.min(width, height);
+        scaleFactor = 0.10; // 横屏时增大到10%
+        minMargin = Math.max(120, screenMinDimension * 0.15); // 横屏时的边距
+
+        // 横屏时，将摇杆位置调整到更居中的位置
+        this.config.baseX = minMargin;
+        this.config.baseY = height / 2; // 横屏时居中垂直位置
+
+        MobileUtils.debug('Joystick', '📱 横屏模式检测');
+      } else {
+        // 竖屏模式：原有的逻辑
+        screenMinDimension = Math.min(width, height);
+        scaleFactor = 0.08; // 竖屏时保持8%
+        minMargin = Math.max(150, screenMinDimension * 0.20);
+      }
+
+      const dynamicRadius = Math.max(this.config.baseRadius, screenMinDimension * scaleFactor);
+
+      // 动态调整摇杆大小
+      this.config.baseRadius = dynamicRadius;
+      this.config.stickRadius = dynamicRadius * 0.65; // 手柄为底座的65%
+      this.config.maxDistance = dynamicRadius * 1.25; // 最大移动距离为底座的125%
+
+      // 确保摇杆在可见区域内且有足够的边距
+      if (!isLandscape) {
+        // 竖屏模式的位置计算
+        this.config.baseX = Math.max(minMargin, this.config.baseX);
+        this.config.baseY = Math.min(height - minMargin, this.config.baseY);
+      }
+
+      // 特殊处理：Chrome DevTools移动端模拟器检测
+      const isChromeMobileEmulator = deviceInfo.browser.chrome &&
+                                    window.navigator.userAgent.includes('Mobile') &&
+                                    (width <= 600 || height <= 600);
+
+      if (isChromeMobileEmulator) {
+        console.warn('🔧 检测到Chrome DevTools移动端模拟器，应用特殊优化');
+        // 模拟器中强制使用更大的尺寸确保可见性
+        const emulatorScaleFactor = 1.5;
+        this.config.baseRadius *= emulatorScaleFactor;
+        this.config.stickRadius *= emulatorScaleFactor;
+        this.config.maxDistance *= emulatorScaleFactor;
+
+        // 确保在模拟器中有足够大的位置
+        this.config.baseX = Math.max(200, this.config.baseX);
+        this.config.baseY = height / 2;
+      }
+
+      MobileUtils.debug('Joystick', 'Dynamic size adjustment for mobile', {
+        isLandscape,
+        screenMinDimension,
+        baseRadius: this.config.baseRadius,
+        stickRadius: this.config.stickRadius,
+        maxDistance: this.config.maxDistance,
+        minMargin,
+        finalPosition: { x: this.config.baseX, y: this.config.baseY },
+        isChromeMobileEmulator,
+        cameraSize: `${width}×${height}`
+      });
+    } else {
+      // PC端适配：也根据屏幕尺寸调整摇杆大小
+      const screenMinDimension = Math.min(width, height);
+      const dynamicRadius = Math.max(this.config.baseRadius, screenMinDimension * 0.06); // PC端为屏幕的6%
+
+      this.config.baseRadius = dynamicRadius;
+      this.config.stickRadius = dynamicRadius * 0.65;
+      this.config.maxDistance = dynamicRadius * 1.25;
+
+      MobileUtils.debug('Joystick', 'Dynamic size adjustment for desktop', {
+        screenMinDimension,
+        baseRadius: this.config.baseRadius,
+        stickRadius: this.config.stickRadius
+      });
     }
 
     // 设置摇杆数据
@@ -110,24 +188,41 @@ export class MobileJoystickController {
     // 浏览器特殊处理
     if (deviceInfo.browser.safari) {
       // Safari特殊处理：大幅提高透明度确保可见性
-      this.config.opacity.base = Math.max(this.config.opacity.base, 0.8);  // 从0.3提高到0.8
-      this.config.opacity.stick = Math.max(this.config.opacity.stick, 1.0); // 从0.5提高到1.0
+      this.config.opacity.base = 1.0;  // 完全不透明
+      this.config.opacity.stick = 1.0; // 完全不透明
       this.config.opacity.active = 1.0;
 
       // Safari还需要特殊颜色调整
-      this.config.colors.base = 0x999999;  // 使用更亮的颜色
-      this.config.colors.stick = 0xcccccc;  // 使用更亮的颜色
+      this.config.colors.base = 0xbbbbbb;  // 使用非常亮的颜色
+      this.config.colors.stick = 0xeeeeee;  // 使用非常亮的颜色
 
-      MobileUtils.debug('Joystick', 'Safari detected -大幅调整透明度和颜色', {
+      // Safari中增大摇杆尺寸
+      if (deviceInfo.isMobile) {
+        this.config.baseRadius *= 1.2;
+        this.config.stickRadius *= 1.2;
+        this.config.maxDistance *= 1.2;
+      }
+
+      MobileUtils.debug('Joystick', 'Safari detected - 最大透明度和亮度调整', {
         baseOpacity: this.config.opacity.base,
         stickOpacity: this.config.opacity.stick,
         baseColor: this.config.colors.base.toString(16),
-        stickColor: this.config.colors.stick.toString(16)
+        stickColor: this.config.colors.stick.toString(16),
+        adjustedBaseRadius: this.config.baseRadius,
+        adjustedStickRadius: this.config.stickRadius
       });
     } else if (deviceInfo.browser.chrome) {
       // Chrome特殊处理：确保触摸事件正确绑定
-      this.config.updateRate = Math.max(this.config.updateRate, 120); // 提高更新率
-      MobileUtils.debug('Joystick', 'Chrome detected, optimizing touch event handling');
+      this.config.updateRate = Math.max(this.config.updateRate || 60, 120); // 提高更新率
+      // Chrome中也适当提高透明度
+      this.config.opacity.base = Math.max(this.config.opacity.base, 0.8);
+      this.config.opacity.stick = Math.max(this.config.opacity.stick, 0.95);
+
+      MobileUtils.debug('Joystick', 'Chrome detected, optimizing touch and visibility', {
+        baseOpacity: this.config.opacity.base,
+        stickOpacity: this.config.opacity.stick,
+        updateRate: this.config.updateRate
+      });
     }
 
     // 响应式调整：根据屏幕尺寸调整摇杆大小
@@ -169,18 +264,24 @@ export class MobileJoystickController {
     if (this.config.showBase) {
       this.baseGraphics = this.scene.add.graphics();
       setScrollFactor(this.baseGraphics);
+      // 设置深度确保摇杆显示在游戏元素之上
+      this.baseGraphics.setDepth(1000);
       this.drawBase();
     }
 
     if (this.config.showStick) {
       this.stickGraphics = this.scene.add.graphics();
       setScrollFactor(this.stickGraphics);
+      // 设置深度确保摇杆显示在游戏元素之上
+      this.stickGraphics.setDepth(1001);
       this.drawStick();
     }
 
     // 方向指示器
     this.indicatorGraphics = this.scene.add.graphics();
     setScrollFactor(this.indicatorGraphics);
+    // 设置深度确保指示器显示在最上层
+    this.indicatorGraphics.setDepth(1002);
 
     // 初始状态下显示半透明摇杆（便于调试和Safari显示）
     this.setOpacity(this.config.opacity.base);
