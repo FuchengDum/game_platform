@@ -555,7 +555,7 @@ export class PowerUpManager {
     // 触发生成事件
     this.triggerEvent('food_spawned', foodItem);
 
-    console.log(`🍽️ 生成食物: ${foodType.name} at (${position.x}, ${position.y})`);
+    // console.log(`🍽️ 生成食物: ${foodType.name} at (${position.x}, ${position.y})`);
 
     return foodItem;
   }
@@ -1373,9 +1373,9 @@ class VisualEffectManager {
     // 这里应该实现具体的粒子效果
     // 由于是简化版本，暂时只记录效果
     if (count === 1) {
-      console.log(`✨ 创建单粒子: 位置(${x.toFixed(1)}, ${y.toFixed(1)}), 颜色: ${color}`);
+      // console.log(`✨ 创建单粒子: 位置(${x.toFixed(1)}, ${y.toFixed(1)}), 颜色: ${color}`);
     } else {
-      console.log(`✨ 创建粒子效果: ${count}个粒子在(${x.toFixed(1)}, ${y.toFixed(1)}), 颜色: ${color}`);
+      // console.log(`✨ 创建粒子效果: ${count}个粒子在(${x.toFixed(1)}, ${y.toFixed(1)}), 颜色: ${color}`);
     }
   }
 
@@ -1402,6 +1402,48 @@ class VisualEffectManager {
   clearAllEffects() {
     this.activeEffects = [];
     this.particleSystems.clear();
+  }
+
+  /**
+   * 更新世界大小（用于响应式调整）
+   */
+  updateWorldSize() {
+    const oldGridSize = this.gridSize;
+
+    // 从GameRenderer获取最新的网格配置
+    if (this.scene && this.scene.gameRenderer && this.scene.gameRenderer.gridConfig) {
+      const newGridSize = this.scene.gameRenderer.gridConfig.worldGridSize;
+
+      if (newGridSize && newGridSize !== this.gridSize) {
+        this.gridSize = newGridSize;
+
+        console.log('🍎 PowerUpManager世界大小更新:', {
+          from: oldGridSize,
+          to: this.gridSize,
+          activeFoodItems: this.activeFoodItems.size
+        });
+
+        // 清理超出新边界的食物
+        for (const [foodId, foodItem] of this.activeFoodItems) {
+          if (foodItem.position) {
+            if (foodItem.position.x >= this.gridSize ||
+                foodItem.position.y >= this.gridSize) {
+              this.activeFoodItems.delete(foodId);
+              console.log(`🍎 移除超出边界的食物: ${foodId}`);
+            }
+          }
+        }
+
+        // 调整最大食物数量（如果需要）
+        this.maxFoodItems = Math.min(100, Math.floor(this.gridSize * this.gridSize / 400));
+
+        console.log('🍎 食物管理器更新完成:', {
+          gridSize: this.gridSize,
+          maxFoodItems: this.maxFoodItems,
+          currentFoodItems: this.activeFoodItems.size
+        });
+      }
+    }
   }
 }
 

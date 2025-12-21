@@ -761,4 +761,30 @@ export class SnakeController {
       activeEffects: this.getActiveEffects()
     };
   }
+
+  /**
+   * 更新世界大小（用于响应式调整）
+   */
+  updateWorldSize() {
+    if (this.gridConfig && this.gridConfig.worldGridSize) {
+      const oldWidth = this.gridWidth;
+      const oldHeight = this.gridHeight;
+
+      this.gridWidth = this.gridConfig.worldGridSize;
+      this.gridHeight = this.gridConfig.worldGridSize;
+
+      console.log('🐍 SnakeController世界大小更新:', {
+        from: `${oldWidth}×${oldHeight}`,
+        to: `${this.gridWidth}×${this.gridHeight}`
+      });
+
+      // 如果蛇的位置超出了新的世界边界，将其移回边界内
+      if (this.snake.length > 0) {
+        this.snake.forEach(segment => {
+          segment.x = Math.max(0, Math.min(this.gridWidth - 1, segment.x));
+          segment.y = Math.max(0, Math.min(this.gridHeight - 1, segment.y));
+        });
+      }
+    }
+  }
 }

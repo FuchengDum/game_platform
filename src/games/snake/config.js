@@ -13,15 +13,15 @@ export default {
     mobile: '滑动屏幕控制方向'
   },
   gameConfig: {
-    width: 600,
-    height: 600,
+    width: '100%',
+    height: '100%',
     scale: {
-      mode: 'FIT',
+      mode: 'RESIZE',  // 使用RESIZE模式，更适合容器响应式
       autoCenter: 'CENTER_BOTH',
-      // 移除 parent 配置，让容器动态设置
-      width: 600,
-      height: 600,
-      expandParent: false
+      width: '100%',
+      height: '100%',
+      resizeParent: true,
+      expandParent: true
     },
     physics: {
       default: 'arcade',
