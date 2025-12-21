@@ -43,3 +43,5 @@ audit.log
 test-*.html
 *-test.html
 debug-*.html
+safari-debug.html
+safari-joystick-only.html

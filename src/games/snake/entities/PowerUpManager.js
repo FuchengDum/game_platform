@@ -10,11 +10,12 @@ export class PowerUpManager {
     this.scene = scene;
     this.effectManager = new EffectManager();
 
-    // 基础配置
-    this.gridSize = config.gridSize || 30;
-    this.maxFoodItems = config.maxFoodItems || 8;
-    this.spawnCooldown = config.spawnCooldown || 2000;
+    // 基础配置 - 增强为battle arena模式
+    this.gridSize = config.gridSize || 60; // 扩大网格支持battle arena
+    this.maxFoodItems = config.maxFoodItems || 100; // 支持50-100个食物
+    this.spawnCooldown = config.spawnCooldown || 500; // 更快的生成速度
     this.lastSpawnTime = 0;
+    this.isBattleArenaMode = config.isBattleArenaMode !== false; // 默认开启battle arena
 
     // 食物生态系统配置
     this.foodEcosystem = this.initializeFoodEcosystem();
@@ -46,12 +47,12 @@ export class PowerUpManager {
    */
   initializeFoodEcosystem() {
     return {
-      // 基础食物类型
-      NORMAL: {
-        id: 'NORMAL',
-        name: '普通食物',
+      // 基础食物类型 - battle arena大小变体
+      NORMAL_SMALL: {
+        id: 'NORMAL_SMALL',
+        name: '小食物',
         color: 0x4ade80,
-        score: 10,
+        score: 5,
         rarity: 'common',
         effect: {
           type: 'growth',
@@ -59,11 +60,113 @@ export class PowerUpManager {
           duration: 0
         },
         visual: {
+          size: 0.6,
+          animation: 'pulse',
+          particles: false
+        },
+        spawnChance: 0.25
+      },
+
+      NORMAL_MEDIUM: {
+        id: 'NORMAL_MEDIUM',
+        name: '中食物',
+        color: 0x22c55e,
+        score: 15,
+        rarity: 'common',
+        effect: {
+          type: 'growth',
+          value: 3,
+          duration: 0
+        },
+        visual: {
           size: 1.0,
           animation: 'pulse',
           particles: false
         },
-        spawnChance: 0.4
+        spawnChance: 0.15
+      },
+
+      NORMAL_LARGE: {
+        id: 'NORMAL_LARGE',
+        name: '大食物',
+        color: 0x16a34a,
+        score: 25,
+        rarity: 'uncommon',
+        effect: {
+          type: 'growth',
+          value: 5,
+          duration: 0
+        },
+        visual: {
+          size: 1.4,
+          animation: 'pulse',
+          particles: true,
+          particleColor: 0x16a34a
+        },
+        spawnChance: 0.05
+      },
+
+      // Growth Food - 红色成长食物 (Requirement 6)
+      GROWTH_FOOD: {
+        id: 'GROWTH_FOOD',
+        name: '成长食物',
+        color: 0xef4444, // 红色
+        score: 20,
+        rarity: 'uncommon',
+        effect: {
+          type: 'growth',
+          value: 3,
+          duration: 0
+        },
+        visual: {
+          size: 1.2,
+          animation: 'bounce',
+          particles: true,
+          particleColor: 0xef4444
+        },
+        spawnChance: 0.12
+      },
+
+      // Speed Food - 黄色速度食物 (Requirement 6)
+      SPEED_FOOD: {
+        id: 'SPEED_FOOD',
+        name: '速度食物',
+        color: 0xeab308, // 黄色
+        score: 25,
+        rarity: 'uncommon',
+        effect: {
+          type: 'speed',
+          value: 1.2,
+          duration: 10000 // 10秒速度提升
+        },
+        visual: {
+          size: 1.1,
+          animation: 'flash',
+          particles: true,
+          particleColor: 0xeab308
+        },
+        spawnChance: 0.10
+      },
+
+      // Shield Food - 紫色护盾食物 (Requirement 6)
+      SHIELD_FOOD: {
+        id: 'SHIELD_FOOD',
+        name: '护盾食物',
+        color: 0xa855f7, // 紫色
+        score: 30,
+        rarity: 'rare',
+        effect: {
+          type: 'shield',
+          value: 1,
+          duration: 5000 // 5秒护盾
+        },
+        visual: {
+          size: 1.3,
+          animation: 'rotate',
+          particles: true,
+          particleColor: 0xa855f7
+        },
+        spawnChance: 0.06
       },
 
       // 成长类食物
@@ -337,6 +440,20 @@ export class PowerUpManager {
   }
 
   /**
+   * 初始化battle arena食物生成
+   */
+  initializeBattleArena(snakeBody) {
+    if (!this.isBattleArenaMode) return;
+
+    const initialFoodCount = 50 + Math.floor(Math.random() * 50); // 50-100个食物
+    console.log(`🎮 初始化Battle Arena，生成${initialFoodCount}个食物`);
+
+    for (let i = 0; i < initialFoodCount; i++) {
+      this.spawnFood(snakeBody, { score: 0 });
+    }
+  }
+
+  /**
    * 更新食物生态系统
    */
   update(deltaTime, snakeBody, gameStats) {
@@ -345,6 +462,11 @@ export class PowerUpManager {
 
     // 更新现有食物的动画
     this.updateFoodAnimations(deltaTime);
+
+    // Battle arena模式下的磁铁效果
+    if (this.isBattleArenaMode) {
+      this.applyMagnetEffect(snakeBody[0] || { x: this.gridSize / 2, y: this.gridSize / 2 });
+    }
 
     // 检查是否需要生成新食物
     if (this.shouldSpawnFood(gameStats)) {
@@ -374,10 +496,31 @@ export class PowerUpManager {
       return false;
     }
 
-    // 根据分数调整生成概率
-    const scoreAdjustedChance = Math.min(0.8, 0.3 + (gameStats.score / 10000) * 0.5);
+    let spawnChance;
 
-    return Math.random() < scoreAdjustedChance;
+    if (this.isBattleArenaMode) {
+      // Battle arena模式下的生成逻辑
+      const foodRatio = this.activeFoodItems.size / this.maxFoodItems;
+      if (foodRatio < 0.3) {
+        // 食物太少时，提高生成概率
+        spawnChance = 0.9;
+      } else if (foodRatio < 0.6) {
+        // 中等数量时正常生成
+        spawnChance = 0.6;
+      } else {
+        // 接近最大数量时降低生成概率
+        spawnChance = 0.2;
+      }
+
+      // 根据分数略微增加稀有食物概率
+      const scoreBonus = Math.min(0.1, gameStats.score / 50000);
+      spawnChance += scoreBonus;
+    } else {
+      // 传统模式下的生成逻辑
+      spawnChance = Math.min(0.8, 0.3 + (gameStats.score / 10000) * 0.5);
+    }
+
+    return Math.random() < spawnChance;
   }
 
   /**
@@ -533,6 +676,56 @@ export class PowerUpManager {
     }
 
     return null;
+  }
+
+  /**
+   * 检查护盾碰撞处理 (Requirement 6 - 护盾弹跳机制)
+   */
+  checkShieldCollision(snakeController, collisionType, collisionData) {
+    const shieldLevel = this.getEffectMultipliers().shield;
+    if (shieldLevel === 0) {
+      return null; // 没有护盾，正常处理碰撞
+    }
+
+    // 护盾激活时的弹跳处理
+    console.log(`🛡️ 护盾弹跳! 等级: ${shieldLevel}, 碰撞类型: ${collisionType}`);
+
+    return {
+      bounced: true,
+      shieldLevel: shieldLevel,
+      speedReduction: 0.7, // 弹跳后速度降低30%
+      shieldRemaining: this.effectManager.getEffectRemainingTime('shield'),
+      bounceDirection: this.calculateBounceDirection(collisionType, collisionData)
+    };
+  }
+
+  /**
+   * 计算弹跳方向
+   */
+  calculateBounceDirection(collisionType, collisionData) {
+    switch (collisionType) {
+      case 'wall':
+        // 墙壁碰撞 - 反弹方向
+        if (collisionData.side === 'top' || collisionData.side === 'bottom') {
+          return { x: collisionData.direction.x, y: -collisionData.direction.y };
+        } else {
+          return { x: -collisionData.direction.x, y: collisionData.direction.y };
+        }
+
+      case 'body':
+        // 身体碰撞 - 根据碰撞位置计算反弹
+        const angle = Math.atan2(
+          collisionData.headPosition.y - collisionData.collisionPoint.y,
+          collisionData.headPosition.x - collisionData.collisionPoint.x
+        );
+        return {
+          x: Math.cos(angle),
+          y: Math.sin(angle)
+        };
+
+      default:
+        return { x: 0, y: 0 };
+    }
   }
 
   /**
@@ -709,9 +902,11 @@ export class PowerUpManager {
     graphics.fill();
 
     // 边框
-    graphics.strokeStyle = type.color, 0.5);
+    graphics.strokeStyle = type.color;
+    graphics.globalAlpha = 0.5;
     graphics.lineWidth = 2;
     graphics.stroke();
+    graphics.globalAlpha = 1;
 
     // 高光效果
     const gradient = graphics.createRadialGradient(-3, -3, 0, 0, 0, cellSize * 0.3);
@@ -882,6 +1077,127 @@ export class PowerUpManager {
   }
 
   /**
+   * 处理食物消费
+   * @param {Object} foodItem - 被消费的食物项
+   * @param {Object} snakeHead - 蛇头位置
+   */
+  onFoodConsumed(foodItem, snakeHead) {
+    if (!foodItem) return;
+
+    // 更新统计
+    this.statistics.totalConsumed++;
+
+    // 更新稀有度分布
+    const rarity = foodItem.type.rarity || 'common';
+    this.statistics.rarityDistribution[rarity] = (this.statistics.rarityDistribution[rarity] || 0) + 1;
+
+    // 应用食物效果
+    if (foodItem.type.effect) {
+      this.applyFoodEffect(foodItem.type.effect, snakeHead);
+    }
+
+    // 创建消费视觉效果
+    this.visualEffectManager.createConsumeEffect(foodItem);
+
+    // 触发消费事件
+    this.triggerEvent('food_consumed', { foodItem, snakeHead });
+
+    console.log(`🎯 食物消费: ${foodItem.type.name} (${rarity})`);
+  }
+
+  /**
+   * 应用食物效果
+   * @param {Object} effect - 效果对象
+   * @param {Object} target - 目标位置
+   */
+  applyFoodEffect(effect, target) {
+    // 直接在场景中找到SnakeController并应用效果
+    const snakeController = this.scene.snakeController;
+    if (!snakeController) return;
+
+    switch (effect.type) {
+      case 'speed':
+        snakeController.applySpeedBoost(effect.value, effect.duration);
+        console.log(`⚡ 应用速度效果: ${effect.value}倍, ${effect.duration}ms`);
+        break;
+
+      case 'shield':
+        snakeController.applyShield(effect.value, effect.duration);
+        console.log(`🛡️ 应用护盾效果: 强度${effect.value}, ${effect.duration}ms`);
+        break;
+
+      case 'magnet':
+        this.activateMagnetEffect(effect.value, effect.duration);
+        console.log(`🧲 应用磁铁效果: 范围${effect.value}, ${effect.duration}ms`);
+        break;
+
+      case 'growth':
+        // 成长效果在游戏逻辑中处理
+        console.log(`🌱 成长效果: +${effect.value}长度`);
+        break;
+
+      default:
+        console.log(`❓ 未知效果类型: ${effect.type}`);
+        break;
+    }
+  }
+
+  /**
+   * 激活磁铁效果
+   * @param {number} value - 磁铁强度（格数）
+   * @param {number} duration - 持续时间（毫秒）
+   */
+  activateMagnetEffect(value = 3, duration = 5000) {
+    console.log(`🧲 磁铁效果激活: ${value}格范围, ${duration}ms持续时间`);
+
+    // 将附近的食物吸引到蛇的周围
+    const snakeBody = this.scene.snakeController?.getSnake() || [];
+    if (snakeBody.length === 0) return;
+
+    const snakeHead = snakeBody[0];
+    const affectedFoods = [];
+
+    this.activeFoodItems.forEach((foodItem, foodId) => {
+      const distance = Math.sqrt(
+        Math.pow(foodItem.position.x - snakeHead.x, 2) +
+        Math.pow(foodItem.position.y - snakeHead.y, 2)
+      );
+
+      // 如果食物在磁铁范围内
+      if (distance <= value && distance > 0) {
+        affectedFoods.push({ foodItem, foodId, distance });
+      }
+    });
+
+    // 按距离排序，吸引最近的食物
+    affectedFoods.sort((a, b) => a.distance - b.distance);
+
+    // 吸引最多3个最近的食物
+    const maxAttracted = Math.min(3, affectedFoods.length);
+    for (let i = 0; i < maxAttracted; i++) {
+      const { foodItem, foodId } = affectedFoods[i];
+
+      // 将食物移动到蛇头附近
+      const angle = Math.atan2(
+        foodItem.position.y - snakeHead.y,
+        foodItem.position.x - snakeHead.x
+      );
+
+      foodItem.position.x = snakeHead.x + Math.cos(angle) * 2;
+      foodItem.position.y = snakeHead.y + Math.sin(angle) * 2;
+
+      // 确保食物在有效位置
+      foodItem.position.x = Math.max(0, Math.min(this.gridSize - 1, foodItem.position.x));
+      foodItem.position.y = Math.max(0, Math.min(this.gridSize - 1, foodItem.position.y));
+
+      console.log(`🧲 食物被吸引: ${foodItem.type.name} -> (${foodItem.position.x}, ${foodItem.position.y})`);
+    }
+
+    // 创建磁铁视觉效果
+    this.visualEffectManager.createMagnetEffect(snakeHead, value, duration);
+  }
+
+  /**
    * 销毁管理器
    */
   destroy() {
@@ -990,10 +1306,77 @@ class VisualEffectManager {
     this.createParticles(foodItem.position.x, foodItem.position.y, foodItem.type.color, 20);
   }
 
+  createMagnetEffect(center, range, duration) {
+    // 磁铁效果的视觉表现
+    console.log(`🧲 创建磁铁视觉效果: 中心(${center.x}, ${center.y}), 范围${range}, 持续${duration}ms`);
+
+    // 创建磁铁场的视觉指示器
+    const effect = {
+      type: 'magnet',
+      center: { ...center },
+      range: range,
+      duration: duration,
+      startTime: Date.now(),
+      lifeTime: duration,
+      pulsePhase: 0
+    };
+
+    this.activeEffects.push(effect);
+
+    // 创建磁铁边界圆环效果
+    this.createMagneticRings(center, range);
+
+    // 创建磁铁指示器粒子
+    this.createMagneticIndicators(center, range);
+  }
+
+  createMagneticRings(center, range) {
+    // 创建磁力圆环
+    const ringCount = 3;
+    for (let i = 0; i < ringCount; i++) {
+      const ringRadius = (range * (i + 1)) / ringCount;
+      const particleCount = Math.floor(2 * Math.PI * ringRadius); // 每单位半径一个粒子
+
+      for (let j = 0; j < particleCount; j++) {
+        const angle = (j / particleCount) * 2 * Math.PI;
+        const x = center.x + Math.cos(angle) * ringRadius;
+        const y = center.y + Math.sin(angle) * ringRadius;
+
+        // 磁场粒子颜色（紫色系）
+        const magnetColor = 0xa855f7; // 紫色
+        this.createParticles(x, y, magnetColor, 1);
+      }
+    }
+
+    console.log(`🌀 创建${ringCount}个磁力圆环，范围${range}格`);
+  }
+
+  createMagneticIndicators(center, range) {
+    // 创建磁力指示器（8个方向）
+    const directions = 8;
+    for (let i = 0; i < directions; i++) {
+      const angle = (i / directions) * 2 * Math.PI;
+      const indicatorDistance = range * 1.2; // 略超出磁力范围
+
+      const x = center.x + Math.cos(angle) * indicatorDistance;
+      const y = center.y + Math.sin(angle) * indicatorDistance;
+
+      // 磁力指示器颜色（淡紫色）
+      const indicatorColor = 0xc084fc; // 浅紫色
+      this.createParticles(x, y, indicatorColor, 2);
+    }
+
+    console.log(`🎯 创建${directions}个磁力指示器`);
+  }
+
   createParticles(x, y, color, count) {
     // 这里应该实现具体的粒子效果
     // 由于是简化版本，暂时只记录效果
-    console.log(`✨ 创建粒子效果: ${count}个粒子在(${x}, ${y}), 颜色: ${color}`);
+    if (count === 1) {
+      console.log(`✨ 创建单粒子: 位置(${x.toFixed(1)}, ${y.toFixed(1)}), 颜色: ${color}`);
+    } else {
+      console.log(`✨ 创建粒子效果: ${count}个粒子在(${x.toFixed(1)}, ${y.toFixed(1)}), 颜色: ${color}`);
+    }
   }
 
   updateFoodAnimation(foodItem, deltaTime) {
@@ -1021,5 +1404,6 @@ class VisualEffectManager {
     this.particleSystems.clear();
   }
 }
+
 
 export default PowerUpManager;

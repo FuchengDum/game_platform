@@ -269,6 +269,225 @@ export const PRESET_CONFIGS = {
   }
 };
 
+// 设备检测工具
+export const DeviceDetection = {
+  /**
+   * 检测是否为移动设备
+   */
+  isMobile() {
+    // 优先检查触摸支持
+    const hasTouchSupport = 'ontouchstart' in window ||
+                              navigator.maxTouchPoints > 0 ||
+                              navigator.msMaxTouchPoints > 0;
+
+    // 检查用户代理
+    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+    const isMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i.test(userAgent);
+
+    // 检查DevTools模拟器
+    const isDevToolsMobile = window.innerWidth <= 768 ||
+                             window.innerHeight <= 1024 ||
+                             userAgent.includes('Mobile') ||
+                             userAgent.includes('Android');
+
+    return hasTouchSupport || isMobileUserAgent || isDevToolsMobile;
+  },
+
+  /**
+   * 检测是否为Safari浏览器
+   */
+  isSafari() {
+    const userAgent = navigator.userAgent;
+    return (/Safari/.test(userAgent) && !/Chrome|Chromium/.test(userAgent)) ||
+           (/iPhone|iPad|iPod/.test(userAgent) && /Apple/.test(navigator.vendor));
+  },
+
+  /**
+   * 检测是否为Chrome浏览器
+   */
+  isChrome() {
+    return /Chrome/.test(navigator.userAgent) ||
+           /Chromium/.test(navigator.userAgent) ||
+           /CriOS/.test(navigator.userAgent); // Chrome on iOS
+  },
+
+  /**
+   * 检测是否为iOS设备
+   */
+  isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+           (/Mac/.test(navigator.platform) && 'ontouchend' in document);
+  },
+
+  /**
+   * 检测是否为Android设备
+   */
+  isAndroid() {
+    return /Android/.test(navigator.userAgent);
+  },
+
+  /**
+   * 获取设备类型
+   */
+  getDeviceType() {
+    if (this.isIOS()) return 'ios';
+    if (this.isAndroid()) return 'android';
+    if (this.isMobile()) return 'mobile';
+    return 'desktop';
+  },
+
+  /**
+   * 检测Web App环境
+   */
+  isWebApp() {
+    return window.navigator.standalone ||
+           (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+           document.referrer.includes('android-app://');
+  },
+
+  /**
+   * 检测是否支持振动
+   */
+  supportsVibration() {
+    return 'vibrate' in navigator ||
+           ('webkitVibrate' in navigator);
+  },
+
+  /**
+   * 检测是否支持Pointer Events
+   */
+  supportsPointerEvents() {
+    return 'PointerEvent' in window;
+  },
+
+  /**
+   * 检测设备像素比
+   */
+  getPixelRatio() {
+    return window.devicePixelRatio || 1;
+  },
+
+  /**
+   * 检测屏幕方向
+   */
+  getOrientation() {
+    return window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+  },
+
+  /**
+   * 获取详细的设备信息
+   */
+  getDeviceInfo() {
+    return {
+      isMobile: this.isMobile(),
+      isTouchDevice: 'ontouchstart' in window,
+      browser: {
+        safari: this.isSafari(),
+        chrome: this.isChrome(),
+        firefox: /Firefox/.test(navigator.userAgent),
+        edge: /Edge/.test(navigator.userAgent)
+      },
+      os: {
+        ios: this.isIOS(),
+        android: this.isAndroid(),
+        windows: /Windows/.test(navigator.platform),
+        mac: /Mac/.test(navigator.platform),
+        linux: /Linux/.test(navigator.platform)
+      },
+      device: {
+        type: this.getDeviceType(),
+        pixelRatio: this.getPixelRatio(),
+        screenWidth: window.innerWidth,
+        screenHeight: window.innerHeight,
+        orientation: this.getOrientation()
+      },
+      capabilities: {
+        vibration: this.supportsVibration(),
+        pointerEvents: this.supportsPointerEvents(),
+        webApp: this.isWebApp(),
+        touchPoints: navigator.maxTouchPoints || 1
+      }
+    };
+  }
+};
+
+// 触摸事件兼容性工具
+export const TouchCompatibility = {
+  /**
+   * 标准化触摸事件
+   */
+  normalizeTouchEvent(event) {
+    // 处理不同浏览器的事件格式
+    let touches = [];
+    let changedTouches = [];
+
+    if (event.touches && event.touches.length > 0) {
+      // TouchEvent
+      touches = Array.from(event.touches);
+      changedTouches = Array.from(event.changedTouches);
+    } else if (event.pointerType !== undefined) {
+      // PointerEvent
+      touches = [{
+        identifier: event.pointerId,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        force: event.pressure || 0.5,
+        radiusX: event.width / 2 || 10,
+        radiusY: event.height / 2 || 10
+      }];
+
+      changedTouches = [{
+        identifier: event.pointerId,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        force: event.pressure || 0.5,
+        radiusX: event.width / 2 || 10,
+        radiusY: event.height / 2 || 10
+      }];
+    } else if (event.x !== undefined) {
+      // 简单事件对象
+      touches = [{
+        identifier: 0,
+        clientX: event.x,
+        clientY: event.y,
+        force: 0.5,
+        radiusX: 10,
+        radiusY: 10
+      }];
+
+      changedTouches = touches;
+    }
+
+    return { touches, changedTouches };
+  },
+
+  /**
+   * 获取事件类型
+   */
+  getEventType(event) {
+    if (event.type === 'pointerdown' || event.type === 'touchstart') return 'down';
+    if (event.type === 'pointermove' || event.type === 'touchmove') return 'move';
+    if (event.type === 'pointerup' || event.type === 'touchend') return 'up';
+    if (event.type === 'pointercancel' || event.type === 'touchcancel') return 'cancel';
+    return event.type;
+  },
+
+  /**
+   * 防止默认行为
+   */
+  preventDefault(event) {
+    if (event.preventDefault) {
+      event.preventDefault();
+    }
+    if (event.stopPropagation) {
+      event.stopPropagation();
+    }
+    if (event.stopImmediatePropagation) {
+      event.stopImmediatePropagation();
+    }
+  }
+};
+
 // 工具函数
 export const MobileUtils = {
   /**
@@ -315,6 +534,19 @@ export const MobileUtils = {
     const magnitude = Math.sqrt(x * x + y * y);
     if (magnitude === 0) return { x: 0, y: 0 };
     return { x: x / magnitude, y: y / magnitude };
+  },
+
+  /**
+   * 记录调试信息
+   */
+  debug: function(category, message, data = null) {
+    if (process.env.NODE_ENV === 'development') {
+      const deviceInfo = DeviceDetection.getDeviceInfo();
+      console.log(`[Mobile:${category}] ${message}`, {
+        device: deviceInfo,
+        data: data
+      });
+    }
   }
 };
 
