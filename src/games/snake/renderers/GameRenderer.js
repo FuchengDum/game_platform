@@ -26,38 +26,45 @@ export class GameRenderer {
   }
 
   /**
-   * 计算网格配置
+   * 计算网格配置 - 参考Slither.io设计理念
    */
   calculateGridConfig() {
+    // 参考Slither.io设计：巨大的游戏世界，但只显示玩家周围区域
+    // 使用更大的游戏世界，让蛇有足够的空间移动
+
+    // 游戏世界大小（实际游戏逻辑使用的网格）
+    const worldGridSize = 200; // 200x200的巨大世界，参考Slither.io
+
+    // 视口大小（屏幕上显示的网格区域）
+    let viewportGridSize;
+
     if (this.isMobile) {
-      // 移动端：根据屏幕大小动态计算网格数量
       const screenWidth = window.innerWidth;
       const screenHeight = window.innerHeight - 60; // 减去顶部控制栏高度
       const minDimension = Math.min(screenWidth, screenHeight);
 
-      // 根据屏幕尺寸决定网格数量，确保每个格子至少14px，并增加左右空间利用率
-      let gridCount;
+      // 移动端显示区域根据屏幕大小调整
       if (minDimension < 400) {
-        gridCount = 20; // 超小屏幕: 18 → 20
+        viewportGridSize = 25; // 超小屏幕显示25x25
       } else if (minDimension < 600) {
-        gridCount = 24; // 小屏幕: 22 → 24
+        viewportGridSize = 35; // 小屏幕显示35x35
       } else if (minDimension < 800) {
-        gridCount = 28; // 中屏幕: 26 → 28
+        viewportGridSize = 45; // 中屏幕显示45x45
       } else {
-        gridCount = 32; // 大屏幕移动设备: 30 → 32
+        viewportGridSize = 55; // 大屏幕移动设备显示55x55
       }
-
-      return {
-        gridCount: gridCount,
-        isDynamic: true
-      };
     } else {
-      // PC端：固定32x32网格，增加利用率
-      return {
-        gridCount: 32,
-        isDynamic: false
-      };
+      // PC端显示更大的区域
+      viewportGridSize = 70; // PC端显示70x70的视口
     }
+
+    return {
+      worldGridSize: worldGridSize,    // 实际游戏世界大小
+      viewportGridSize: viewportGridSize, // 屏幕显示的视口大小
+      gridCount: viewportGridSize,      // 保持兼容性，使用视口大小
+      isDynamic: true,
+      useCameraFollow: true            // 启用摄像头跟随
+    };
   }
 
   /**
@@ -104,9 +111,10 @@ export class GameRenderer {
         }).setOrigin(1, 0).setScrollFactor(0)
       );
 
-      // 网格大小提示
+      // 网格大小提示 - 增加更多信息
+      const gridArea = this.gridConfig.gridCount * this.gridConfig.gridCount;
       this.infoTexts.push(
-        this.scene.add.text(sceneWidth / 2, 10, `${this.gridConfig.gridCount}×${this.gridConfig.gridCount}`, {
+        this.scene.add.text(sceneWidth / 2, 10, `${this.gridConfig.gridCount}×${this.gridConfig.gridCount} (${gridArea}格)`, {
           fontSize: '12px',
           color: '#94a3b8',
           backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -360,6 +368,78 @@ export class GameRenderer {
   }
 
   /**
+   * 绘制PowerUpManager的食物
+   * @param {Object} foodItem - PowerUpManager的食物对象 { position, type }
+   * @param {number} offsetX - X偏移量
+   * @param {number} offsetY - Y偏移量
+   * @param {number} gridSize - 网格大小
+   */
+  drawPowerUpFood(foodItem, offsetX, offsetY, gridSize) {
+    if (!foodItem || !foodItem.position || !foodItem.type) return;
+
+    const x = offsetX + foodItem.position.x * gridSize + gridSize / 2;
+    const y = offsetY + foodItem.position.y * gridSize + gridSize / 2;
+    const foodType = foodItem.type;
+    const size = (gridSize / 2 - 2) * (foodType.visual?.size || 1.0);
+    const color = foodType.color || 0xff6b6b;
+
+    // 绘制食物主体
+    this.graphics.fillStyle(color);
+    this.graphics.fillCircle(x, y, size);
+
+    // 根据食物类型添加特殊视觉效果
+    if (foodType.visual?.particles && size > gridSize * 0.3) {
+      // 绘制粒子效果
+      this.drawFoodParticles(x, y, size, foodType.visual.particleColor || color);
+    }
+
+    // 添加稀有度边框
+    const rarityColors = {
+      common: 0x666666,
+      uncommon: 0x22c55e,
+      rare: 0x3b82f6,
+      epic: 0xa855f7,
+      legendary: 0xf59e0b
+    };
+    const borderColor = rarityColors[foodType.rarity] || 0x666666;
+    this.graphics.lineStyle(2, borderColor);
+    this.graphics.strokeCircle(x, y, size);
+
+    // 大型食物添加发光效果
+    if (size > gridSize * 0.4) {
+      this.graphics.lineStyle(1, color, 0.3);
+      this.graphics.strokeCircle(x, y, size * 1.2);
+    }
+
+    // 食物高光
+    this.graphics.fillStyle(0xffffff, 0.4);
+    const highlightSize = Math.max(2, size / 4);
+    this.graphics.fillCircle(x - highlightSize, y - highlightSize, highlightSize);
+  }
+
+  /**
+   * 绘制食物粒子效果
+   * @param {number} centerX - 中心X坐标
+   * @param {number} centerY - 中心Y坐标
+   * @param {number} mainRadius - 主圆半径
+   * @param {number} particleColor - 粒子颜色
+   */
+  drawFoodParticles(centerX, centerY, mainRadius, particleColor) {
+    const particleCount = 4;
+    const particleRadius = mainRadius * 0.15;
+    const distance = mainRadius * 1.8;
+
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2;
+      const x = centerX + Math.cos(angle) * distance;
+      const y = centerY + Math.sin(angle) * distance;
+
+      this.graphics.fillStyle(particleColor, 0.6);
+      this.graphics.fillCircle(x, y, particleRadius);
+    }
+  }
+
+  /**
    * 清除画布
    */
   clear() {
@@ -370,6 +450,11 @@ export class GameRenderer {
 
   /**
    * 完整渲染
+   * @param {Array} snake - 蛇身体段落数组
+   * @param {Array|Object} food - 食物数组或单个食物对象（向后兼容）
+   * @param {boolean} isBlinking - 是否在眨眼
+   * @param {Object} gameStats - 游戏统计数据
+   * @param {Object} gameState - 游戏状态
    */
   render(snake, food, isBlinking = false, gameStats = null, gameState = null) {
     if (!this.graphics) {
@@ -407,19 +492,51 @@ export class GameRenderer {
       offsetY = (sceneHeight - gameSize) / 2;
     }
 
+    // 摄像头跟随逻辑 - 参考Slither.io设计
+    let cameraOffsetX = 0;
+    let cameraOffsetY = 0;
+
+    if (this.gridConfig.useCameraFollow && snake.length > 0) {
+      const snakeHead = snake[0];
+      const worldGridSize = this.gridConfig.worldGridSize;
+      const viewportGridSize = this.gridConfig.viewportGridSize;
+      const gridSize = gameSize / viewportGridSize;
+
+      // 计算蛇头在世界中的位置
+      const worldX = snakeHead.x * gridSize;
+      const worldY = snakeHead.y * gridSize;
+
+      // 计算摄像头应该偏移到让蛇头居中的位置
+      cameraOffsetX = -worldX + sceneWidth / 2;
+      cameraOffsetY = -worldY + sceneHeight / 2;
+
+      // 限制摄像头边界，不能超出世界边界
+      const maxOffsetX = 0;
+      const maxOffsetY = 0;
+      const minOffsetX = -(worldGridSize * gridSize - sceneWidth);
+      const minOffsetY = -(worldGridSize * gridSize - sceneHeight);
+
+      cameraOffsetX = Math.max(minOffsetX, Math.min(maxOffsetX, cameraOffsetX));
+      cameraOffsetY = Math.max(minOffsetY, Math.min(maxOffsetY, cameraOffsetY));
+
+      // 应用摄像头偏移
+      offsetX += cameraOffsetX;
+      offsetY += cameraOffsetY;
+    }
+
     this.clear();
 
     // 绘制背景
     this.graphics.fillStyle(0x1a1a2e);
     this.graphics.fillRect(0, 0, sceneWidth, sceneHeight);
 
-    // 使用动态网格配置
-    const gridCount = this.gridConfig.gridCount;
-    const gridSize = gameSize / gridCount;
+    // 使用视口网格配置进行渲染
+    const viewportGridSize = this.gridConfig.viewportGridSize;
+    const gridSize = gameSize / viewportGridSize;
 
-    // 绘制简单网格线 - 居中显示
+    // 绘制视口内的网格线
     this.graphics.lineStyle(1, 0x2a2a4e, 0.3);
-    for (let i = 0; i <= gridCount; i++) {
+    for (let i = 0; i <= viewportGridSize; i++) {
       // 垂直线
       const x = offsetX + i * gridSize;
       this.graphics.beginPath();
@@ -437,7 +554,23 @@ export class GameRenderer {
 
     // 更新绘制函数以使用居中坐标
     this.drawSnakeCentered(snake, isBlinking, offsetX, offsetY, gridSize);
-    this.drawFoodCentered(food, offsetX, offsetY, gridSize);
+
+    // 绘制食物 - 支持数组和单个对象
+    if (Array.isArray(food)) {
+      // 绘制多个食物（PowerUpManager系统）
+      food.forEach(foodItem => {
+        if (foodItem && foodItem.position) {
+          // PowerUpManager的食物对象格式：{ position: {x, y}, type: {...} }
+          this.drawPowerUpFood(foodItem, offsetX, offsetY, gridSize);
+        } else if (foodItem) {
+          // 兼容旧格式
+          this.drawFoodCentered(foodItem, offsetX, offsetY, gridSize);
+        }
+      });
+    } else {
+      // 绘制单个食物（传统系统）
+      this.drawFoodCentered(food, offsetX, offsetY, gridSize);
+    }
 
     // 更新分数显示
     if (gameStats && gameState) {

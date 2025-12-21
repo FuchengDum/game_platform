@@ -4,10 +4,11 @@
  * 支持传统4方向和360度移动模式
  */
 export class SnakeController {
-  constructor(gridConfig = { gridCount: 30, isDynamic: false }) {
+  constructor(gridConfig = { worldGridSize: 200, viewportGridSize: 30, isDynamic: false }) {
     this.gridConfig = gridConfig;
-    this.gridWidth = gridConfig.gridCount;
-    this.gridHeight = gridConfig.gridCount;
+    // 使用世界大小作为游戏边界，而不是视口大小
+    this.gridWidth = gridConfig.worldGridSize || gridConfig.gridCount;
+    this.gridHeight = gridConfig.worldGridSize || gridConfig.gridCount;
 
     this.snake = [];
     this.direction = 'RIGHT';
@@ -37,6 +38,15 @@ export class SnakeController {
       levelDelays: [120, 110, 100, 90, 80, 70, 65, 60, 55, 50],
       levelNames: ['熟练', '优秀', '专家', '大师', '王者', '传奇', '神话', '至尊', '极速', '闪电']
     };
+
+    // 特殊效果系统
+    this.activeEffects = {
+      speed: null,
+      shield: null,
+      magnet: null
+    };
+    this.effectUpdateInterval = 100; // 效果更新间隔(ms)
+    this.lastEffectUpdateTime = 0;
   }
 
   /**
@@ -66,23 +76,19 @@ export class SnakeController {
     this.targetDirectionVector = { x: 1, y: 0, magnitude: 0, angle: 0 };
     this.lastGridDirection = 'RIGHT';
     this.moveHistory = [];
+
+    // 重置特殊效果
+    this.resetEffects();
   }
 
   /**
    * 更新移动方向
+   * 修改：允许设置任意方向，包括反向，在移动时专门处理
    */
   setDirection(newDirection) {
-    // 防止蛇掉头
-    const opposites = {
-      'UP': 'DOWN',
-      'DOWN': 'UP',
-      'LEFT': 'RIGHT',
-      'RIGHT': 'LEFT'
-    };
-
-    if (opposites[newDirection] !== this.direction) {
-      this.nextDirection = newDirection;
-    }
+    // 直接设置新方向，允许反向移动
+    // 反向移动的特殊处理将在碰撞检测阶段进行
+    this.nextDirection = newDirection;
   }
 
   /**
@@ -174,6 +180,7 @@ export class SnakeController {
 
   /**
    * 检查指定位置是否会发生碰撞
+   * 修改：蛇头接近蛇尾时视为安全移动，因为蛇尾会被移除
    */
   checkCollisionAt(newHead, gridWidth = this.gridWidth, gridHeight = this.gridHeight) {
     // 检查墙壁碰撞
@@ -185,6 +192,12 @@ export class SnakeController {
     // 检查自碰撞
     for (let i = 0; i < this.snake.length; i++) {
       if (newHead.x === this.snake[i].x && newHead.y === this.snake[i].y) {
+        // 如果蛇头会移动到蛇尾位置（最后一个位置），且蛇长度大于1
+        // 这是安全的，因为蛇尾会在移动后被移除
+        if (i === this.snake.length - 1 && this.snake.length > 1) {
+          return false; // 安全移动：蛇头可以移动到蛇尾位置
+        }
+        // 其他情况（撞到身体其他部位）仍然是致命碰撞
         return true;
       }
     }
@@ -279,6 +292,15 @@ export class SnakeController {
   setDirectionVector(vector) {
     if (!this.is360Mode || !vector) return;
 
+    // 检查是否为快速反向操作
+    if (vector.magnitude >= this.minMagnitudeForTurn && this.snake.length > 1) {
+      const isReverse = this.checkIfReverseDirection(vector);
+      if (isReverse) {
+        console.log(`🚫 检测到快速反向操作，阻止以防止游戏结束`);
+        return; // 阻止反向操作
+      }
+    }
+
     // 更新目标方向向量
     this.targetDirectionVector = { ...vector };
 
@@ -307,33 +329,77 @@ export class SnakeController {
   }
 
   /**
+   * 检查是否为反向操作（防止快速反向导致游戏结束）
+   */
+  checkIfReverseDirection(newVector) {
+    if (this.snake.length < 2) return false;
+
+    // 获取蛇头和蛇颈的位置
+    const head = this.snake[0];
+    const neck = this.snake[1]; // 蛇头后的第一个身体部分
+
+    // 计算当前移动方向（从蛇颈到蛇头的向量）
+    const currentDirectionX = head.x - neck.x;
+    const currentDirectionY = head.y - neck.y;
+
+    // 计算新的移动方向（归一化的摇杆向量）
+    const newDirectionX = newVector.x;
+    const newDirectionY = newVector.y;
+
+    // 计算点积，判断是否为反向（点积为负表示角度大于90度）
+    const dotProduct = currentDirectionX * newDirectionX + currentDirectionY * newDirectionY;
+
+    // 如果点积小于0且新的方向强度足够，认为是反向操作
+    if (dotProduct < -0.5 && newVector.magnitude > 0.7) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * 从方向向量更新网格方向
+   * 在360度模式下保持方向向量的连续性，同时提供传统方向支持
    */
   updateGridDirectionFromVector() {
     const { x, y } = this.directionVector;
 
-    // 将连续方向转换为离散的4个主要方向
-    const absX = Math.abs(x);
-    const absY = Math.abs(y);
+    // 在360度模式下，主要使用方向向量而不是传统四方向
+    if (this.is360Mode) {
+      // 360度模式下，为了兼容性仍然设置一个主要方向
+      // 但实际移动使用calculateSmooth360Movement中的完整向量计算
+      const absX = Math.abs(x);
+      const absY = Math.abs(y);
 
-    if (absX > absY) {
-      // 水平方向为主
-      this.nextDirection = x > 0 ? 'RIGHT' : 'LEFT';
+      if (absX > absY) {
+        // 水平方向为主
+        this.nextDirection = x > 0 ? 'RIGHT' : 'LEFT';
+      } else {
+        // 垂直方向为主
+        this.nextDirection = y > 0 ? 'DOWN' : 'UP';
+      }
     } else {
-      // 垂直方向为主
-      this.nextDirection = y > 0 ? 'DOWN' : 'UP';
-    }
+      // 传统模式：严格四方向转换
+      const absX = Math.abs(x);
+      const absY = Math.abs(y);
 
-    // 防止掉头
-    const opposites = {
-      'UP': 'DOWN',
-      'DOWN': 'UP',
-      'LEFT': 'RIGHT',
-      'RIGHT': 'LEFT'
-    };
+      if (absX > absY) {
+        this.nextDirection = x > 0 ? 'RIGHT' : 'LEFT';
+      } else {
+        this.nextDirection = y > 0 ? 'DOWN' : 'UP';
+      }
 
-    if (opposites[this.nextDirection] === this.direction) {
-      this.nextDirection = this.direction;
+      // 防止掉头（仅传统模式）
+      const opposites = {
+        'UP': 'DOWN',
+        'DOWN': 'UP',
+        'LEFT': 'RIGHT',
+        'RIGHT': 'LEFT'
+      };
+
+      if (opposites[this.nextDirection] === this.direction) {
+        this.nextDirection = this.direction;
+      }
     }
   }
 
@@ -369,6 +435,7 @@ export class SnakeController {
 
   /**
    * 计算平滑的头部移动位置（360度模式专用）
+   * 真正的360度移动实现，支持任意角度移动
    */
   calculateSmooth360Movement() {
     if (!this.is360Mode) {
@@ -383,26 +450,38 @@ export class SnakeController {
       return null;
     }
 
-    // 根据方向向量计算下一个网格位置
-    // 这里使用网格对齐，但考虑了360度方向的平滑过渡
-    let nextX = head.x;
-    let nextY = head.y;
+    // 真正的360度移动计算
+    const { x, y, angle } = this.directionVector;
 
-    const { x, y } = this.directionVector;
+    // 移动距离：每次移动一个网格单位，但方向可以是任意角度
+    const moveDistance = 1.0;
 
-    // 根据主要方向分量决定移动方向
-    if (Math.abs(x) > Math.abs(y)) {
-      // 水平移动为主
-      nextX += x > 0 ? 1 : -1;
-    } else {
-      // 垂直移动为主
-      nextY += y > 0 ? 1 : -1;
+    // 计算下一个位置（支持浮点坐标）
+    let nextX = head.x + Math.cos(angle) * moveDistance;
+    let nextY = head.y + Math.sin(angle) * moveDistance;
+
+    // 网格对齐：为了保持游戏的网格特性，将位置对齐到最近的网格点
+    // 但保留移动方向，允许更流畅的转向
+    const gridAlignedX = Math.round(nextX);
+    const gridAlignedY = Math.round(nextY);
+
+    // 只有当移动距离超过半个网格单位时才真正移动到新网格
+    const distanceFromCurrent = Math.sqrt(
+      Math.pow(gridAlignedX - head.x, 2) +
+      Math.pow(gridAlignedY - head.y, 2)
+    );
+
+    if (distanceFromCurrent >= 0.5) {
+      // 移除反向移动阻止逻辑，在碰撞检测阶段统一处理
+      // 这样可以让反向移动被正确地处理为方向改变而不是游戏结束
+
+      // 添加移动历史
+      this.addToMoveHistory({ x: gridAlignedX, y: gridAlignedY });
+
+      return { x: gridAlignedX, y: gridAlignedY };
     }
 
-    // 添加移动历史以平滑移动轨迹
-    this.addToMoveHistory({ x: nextX, y: nextY });
-
-    return { x: nextX, y: nextY };
+    return null;
   }
 
   /**
@@ -520,11 +599,150 @@ export class SnakeController {
     // 检查自碰撞
     for (let i = 0; i < this.snake.length; i++) {
       if (nextPosition.x === this.snake[i].x && nextPosition.y === this.snake[i].y) {
+        // 如果蛇头会移动到蛇尾位置，且蛇长度大于1
+        // 这是安全的，因为蛇尾会在移动后被移除
+        if (i === this.snake.length - 1 && this.snake.length > 1) {
+          return false; // 安全移动：蛇头可以移动到蛇尾位置
+        }
         return true;
       }
     }
 
     return false;
+  }
+
+  
+  /**
+   * 应用速度提升效果
+   * @param {number} multiplier - 速度倍数
+   * @param {number} duration - 持续时间（毫秒）
+   */
+  applySpeedBoost(multiplier = 1.2, duration = 5000) {
+    if (!multiplier || multiplier <= 1 || duration <= 0) return;
+
+    console.log(`⚡ 速度提升效果: ${multiplier}倍速度, ${duration}ms持续时间`);
+
+    // 设置速度效果
+    this.activeEffects.speed = {
+      multiplier: multiplier,
+      endTime: Date.now() + duration,
+      originalDelay: this.baseMoveDelay
+    };
+
+    // 立即应用速度变化
+    this.updateMoveDelay();
+  }
+
+  /**
+   * 应用护盾效果
+   * @param {number} strength - 护盾强度（生命值）
+   * @param {number} duration - 持续时间（毫秒）
+   */
+  applyShield(strength = 1, duration = 5000) {
+    if (!strength || strength <= 0 || duration <= 0) return;
+
+    console.log(`🛡️ 护盾效果: 强度${strength}, ${duration}ms持续时间`);
+
+    // 设置护盾效果
+    this.activeEffects.shield = {
+      strength: strength,
+      endTime: Date.now() + duration,
+      currentStrength: strength
+    };
+  }
+
+  /**
+   * 更新所有活跃效果
+   */
+  updateEffects() {
+    const currentTime = Date.now();
+
+    // 检查并更新速度效果
+    if (this.activeEffects.speed && currentTime >= this.activeEffects.speed.endTime) {
+      console.log('⏱️ 速度提升效果结束');
+      this.activeEffects.speed = null;
+      this.updateMoveDelay();
+    }
+
+    // 检查并更新护盾效果
+    if (this.activeEffects.shield && currentTime >= this.activeEffects.shield.endTime) {
+      console.log('⏱️ 护盾效果结束');
+      this.activeEffects.shield = null;
+    }
+
+    // 可以在这里添加磁铁效果的更新逻辑
+  }
+
+  /**
+   * 更新移动延迟（考虑速度效果）
+   */
+  updateMoveDelay() {
+    if (this.activeEffects.speed) {
+      // 应用速度倍数
+      this.moveDelay = Math.max(
+        30, // 最小移动延迟
+        Math.floor(this.baseMoveDelay / this.activeEffects.speed.multiplier)
+      );
+    } else {
+      this.moveDelay = this.baseMoveDelay;
+    }
+  }
+
+  /**
+   * 重置所有效果
+   */
+  resetEffects() {
+    this.activeEffects = {
+      speed: null,
+      shield: null,
+      magnet: null
+    };
+    this.updateMoveDelay();
+  }
+
+  /**
+   * 检查护盾状态并处理碰撞
+   * @param {Object} collisionInfo - 碰撞信息
+   * @returns {boolean} - 是否应该保护蛇免受伤害
+   */
+  checkShieldProtection(collisionInfo) {
+    if (!this.activeEffects.shield || this.activeEffects.shield.currentStrength <= 0) {
+      return false;
+    }
+
+    // 消耗护盾强度
+    this.activeEffects.shield.currentStrength--;
+    console.log(`🛡️ 护盾保护: 剩余强度 ${this.activeEffects.shield.currentStrength}`);
+
+    // 如果护盾强度为0，移除护盾效果
+    if (this.activeEffects.shield.currentStrength <= 0) {
+      this.activeEffects.shield = null;
+      console.log('💥 护盾破碎');
+    }
+
+    return true;
+  }
+
+  /**
+   * 获取当前效果状态
+   */
+  getActiveEffects() {
+    return {
+      speed: this.activeEffects.speed ? {
+        multiplier: this.activeEffects.speed.multiplier,
+        timeRemaining: Math.max(0, this.activeEffects.speed.endTime - Date.now()),
+        isActive: true
+      } : { isActive: false },
+      shield: this.activeEffects.shield ? {
+        strength: this.activeEffects.shield.currentStrength,
+        timeRemaining: Math.max(0, this.activeEffects.shield.endTime - Date.now()),
+        isActive: true
+      } : { isActive: false },
+      magnet: this.activeEffects.magnet ? {
+        timeRemaining: Math.max(0, this.activeEffects.magnet.endTime - Date.now()),
+        isActive: true
+      } : { isActive: false }
+    };
   }
 
   /**
@@ -539,7 +757,8 @@ export class SnakeController {
       movementMagnitude: this.directionVector.magnitude,
       isMoving: this.isMoving(),
       moveHistory: [...this.moveHistory],
-      predictedPath: this.getPredictedPath()
+      predictedPath: this.getPredictedPath(),
+      activeEffects: this.getActiveEffects()
     };
   }
 }

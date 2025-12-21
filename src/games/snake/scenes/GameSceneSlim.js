@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SnakeController } from '../controllers/SnakeController.js';
 import { GameRenderer } from '../renderers/GameRenderer.js';
 import { GameLogic } from '../logics/GameLogic.js';
+import { PowerUpManager } from '../entities/PowerUpManager.js';
 
 // 移动端组件
 import MobileJoystickController from '../mobile/controllers/MobileJoystickController.js';
@@ -24,9 +25,11 @@ export default class GameSceneSlim extends Phaser.Scene {
     this.snakeController = null;
     this.gameRenderer = null;
     this.gameLogic = null;
+    this.powerUpManager = null;
 
     // 游戏状态
     this.food = null;
+    this.activeFoodItems = new Map(); // 存储多个食物项
     this.cursors = null;
 
     // 动画状态
@@ -74,27 +77,65 @@ export default class GameSceneSlim extends Phaser.Scene {
     this.snakeController = new SnakeController(gridConfig);
     this.gameLogic = new GameLogic();
 
+    // 初始化PowerUpManager with battle arena config - 使用世界大小而不是视口大小
+    const worldGridSize = gridConfig.worldGridSize || gridConfig.gridCount;
+    this.powerUpManager = new PowerUpManager(this, {
+      gridSize: worldGridSize, // 使用世界网格大小
+      maxFoodItems: this.isMobileMode ?
+        Math.floor(worldGridSize * worldGridSize * 0.03) : // 移动端3%覆盖率
+        Math.floor(worldGridSize * worldGridSize * 0.04),  // 桌面端4%覆盖率
+      isBattleArenaMode: true,
+      spawnCooldown: this.isMobileMode ? 500 : 300 // 移动端稍慢，桌面端更快
+    });
+
     // 初始化各个模块
     this.snakeController.init();
     this.gameLogic.init();
     this.gameRenderer.init();
 
-    // 初始化移动端组件（如果是移动设备）
-    if (this.isMobileDevice) {
-      this.initializeMobileComponents();
-      this.isMobileMode = true;
+    // 初始化移动端组件（现在PC端也使用虚拟摇杆控制）
+    this.initializeMobileComponents();
+    this.isMobileMode = true; // PC端也启用移动模式，使用虚拟摇杆
+
+    // 生成初始食物 - 使用PowerUpManager
+    // 在Battle Arena模式下根据世界网格大小生成适量的初始食物
+    const worldArea = worldGridSize * worldGridSize;
+    const initialFoodCount = this.isMobileMode ?
+      Math.max(50, Math.floor(worldArea * 0.008)) : // 移动端：至少50个或0.8%覆盖率
+      Math.max(80, Math.floor(worldArea * 0.01)); // 桌面端：至少80个或1%覆盖率
+
+    // 生成食物：在蛇周围和整个世界中均匀分布
+    const snake = this.snakeController.getSnake();
+    const snakeHead = snake[0];
+
+    // 一部分食物在蛇周围生成（确保游戏开始时就能吃到）
+    const nearbyFoodCount = Math.floor(initialFoodCount * 0.3); // 30%的食物在蛇周围
+    for (let i = 0; i < nearbyFoodCount; i++) {
+      const nearbyFood = this.spawnFoodNearSnake(snakeHead, snake);
+      if (nearbyFood) {
+        this.activeFoodItems.set(nearbyFood.id, nearbyFood);
+      }
     }
 
-    // 生成第一个食物
-    this.food = this.gameLogic.generateRandomFood(this.snakeController.getSnake(), gridConfig.gridCount);
-
-    // 设置控制
-    this.setupKeyboardControls();
-    if (this.isMobileMode) {
-      this.setupMobileControls();
-    } else {
-      this.setupTouchControls();
+    // 剩余食物在整个世界中均匀分布
+    const worldFoodCount = initialFoodCount - nearbyFoodCount;
+    for (let i = 0; i < worldFoodCount; i++) {
+      const food = this.powerUpManager.spawnFood(
+        snake,
+        { score: 0, time: 0 }
+      );
+      if (food) {
+        this.activeFoodItems.set(food.id, food);
+      }
     }
+
+    console.log(`🍽️ 初始化完成：世界 ${worldGridSize}×${worldGridSize}，视口 ${gridConfig.gridCount}×${gridConfig.gridCount}`);
+    console.log(`🍎 生成了 ${this.activeFoodItems.size} 个食物（其中 ${Math.floor(initialFoodCount * 0.3)} 个在蛇周围）`);
+    console.log(`📊 食物覆盖率：${((this.activeFoodItems.size / worldArea) * 100).toFixed(2)}%`);
+
+    // 设置控制 - 所有设备都使用虚拟摇杆控制
+    this.setupKeyboardControls(); // 保留键盘暂停功能
+    this.setupMobileControls(); // 所有设备都使用虚拟摇杆
 
     // 初始化游戏状态
     this.eyeBlinkTime = 0;
@@ -381,6 +422,9 @@ export default class GameSceneSlim extends Phaser.Scene {
     // 更新眨眼动画
     this.updateBlinking(delta);
 
+    // 更新特殊效果
+    this.snakeController.updateEffects();
+
     // 蛇的移动逻辑
     let needsRender = false;
     if (time >= this.snakeController.moveTime) {
@@ -418,6 +462,7 @@ export default class GameSceneSlim extends Phaser.Scene {
    */
   moveSnake() {
     let shouldGrow = false;
+    const currentScore = this.gameLogic.score;
 
     if (this.is360Mode) {
       // 360度模式：获取下一个头部位置进行碰撞检查
@@ -426,7 +471,10 @@ export default class GameSceneSlim extends Phaser.Scene {
       if (!nextHead) return;
 
       // 预检查碰撞
-      if (this.snakeController.checkCollisionAt(nextHead)) {
+      const collisionResult = this.snakeController.checkCollisionAt(nextHead);
+
+      if (collisionResult === true) {
+        // 真正的碰撞（墙壁或身体），游戏结束
         this.handleGameOver();
 
         // 游戏结束触觉反馈
@@ -440,23 +488,37 @@ export default class GameSceneSlim extends Phaser.Scene {
       const head = this.snakeController.move360();
       if (!head) return;
 
-      // 检查是否吃到食物
-      if (this.gameLogic.checkFoodCollision(head, this.food)) {
+      // 检查是否吃到任何食物（使用PowerUpManager）
+      const eatenFood = this.checkFoodCollisions(head);
+
+      if (eatenFood.length > 0) {
         shouldGrow = true;
         this.snakeController.eatFood();
+
+        // 处理每个吃到的食物效果
+        eatenFood.forEach(foodItem => {
+          this.processFoodConsumption(foodItem, head);
+        });
 
         // 吃食物触觉反馈
         if (this.hapticFeedback) {
           this.hapticFeedback.trigger('eat');
         }
-
-        const gridConfig = this.snakeController.getGridSize();
-        this.food = this.gameLogic.generateRandomFood(this.snakeController.getSnake(), gridConfig.gridCount);
       }
 
-      // 如果没有吃到食物，移除蛇尾
-      if (!shouldGrow) {
+      // 检查蛇头是否移动到蛇尾位置
+      let isMovingToTail = false;
+      const snake = this.snakeController.getSnake();
+      if (head && snake.length > 1) {
+        const tail = snake[snake.length - 1];
+        isMovingToTail = (head.x === tail.x && head.y === tail.y);
+      }
+
+      // 如果没有吃到食物且不是移动到蛇尾位置，才移除蛇尾
+      if (!shouldGrow && !isMovingToTail) {
         this.snakeController.removeTail();
+      } else if (isMovingToTail) {
+        console.log(`🔄 蛇头移动到蛇尾位置：保持蛇尾长度，游戏继续`);
       }
 
       // 移动触觉反馈（仅在有实际移动时）
@@ -471,7 +533,10 @@ export default class GameSceneSlim extends Phaser.Scene {
       if (!nextHead) return;
 
       // 预检查碰撞
-      if (this.snakeController.checkCollisionAt(nextHead)) {
+      const collisionResult = this.snakeController.checkCollisionAt(nextHead);
+
+      if (collisionResult === true) {
+        // 真正的碰撞（墙壁或身体），游戏结束
         this.handleGameOver();
 
         // 游戏结束触觉反馈
@@ -485,24 +550,111 @@ export default class GameSceneSlim extends Phaser.Scene {
       const head = this.snakeController.move();
       if (!head) return;
 
-      // 检查是否吃到食物
-      if (this.gameLogic.checkFoodCollision(head, this.food)) {
+      // 检查是否吃到任何食物（使用PowerUpManager）
+      const eatenFood = this.checkFoodCollisions(head);
+
+      if (eatenFood.length > 0) {
         shouldGrow = true;
         this.snakeController.eatFood();
+
+        // 处理每个吃到的食物效果
+        eatenFood.forEach(foodItem => {
+          this.processFoodConsumption(foodItem, head);
+        });
 
         // 吃食物触觉反馈
         if (this.hapticFeedback) {
           this.hapticFeedback.trigger('eat');
         }
-
-        const gridConfig = this.snakeController.getGridSize();
-        this.food = this.gameLogic.generateRandomFood(this.snakeController.getSnake(), gridConfig.gridCount);
       }
 
-      // 如果没有吃到食物，移除蛇尾
-      if (!shouldGrow) {
+      // 检查蛇头是否移动到蛇尾位置
+      let isMovingToTail = false;
+      const snake = this.snakeController.getSnake();
+      if (head && snake.length > 1) {
+        const tail = snake[snake.length - 1];
+        isMovingToTail = (head.x === tail.x && head.y === tail.y);
+      }
+
+      // 如果没有吃到食物且不是移动到蛇尾位置，才移除蛇尾
+      if (!shouldGrow && !isMovingToTail) {
         this.snakeController.removeTail();
+      } else if (isMovingToTail) {
+        console.log(`🔄 蛇头移动到蛇尾位置：保持蛇尾长度，游戏继续`);
       }
+    }
+
+    // PowerUpManager更新 - 可能生成新食物
+    this.powerUpManager.update(
+      16, // deltaTime (ms)
+      this.snakeController.getSnake(),
+      { score: this.gameLogic.score, time: Date.now() }
+    );
+  }
+
+  /**
+   * 检查食物碰撞（支持多个食物）
+   */
+  checkFoodCollisions(head) {
+    const eatenFood = [];
+
+    this.activeFoodItems.forEach((foodItem, foodId) => {
+      if (foodItem.position.x === head.x && foodItem.position.y === head.y) {
+        eatenFood.push(foodItem);
+        this.activeFoodItems.delete(foodId);
+      }
+    });
+
+    return eatenFood;
+  }
+
+  /**
+   * 处理食物消费效果
+   */
+  processFoodConsumption(foodItem, snakeHead) {
+    const foodType = foodItem.type;
+
+    // 更新分数
+    this.gameLogic.score += foodType.score;
+
+    // 应用食物效果（如果有）
+    if (foodType.effect && foodType.effect.type !== 'growth') {
+      this.applyFoodEffect(foodType.effect, snakeHead);
+    }
+
+    // 触发PowerUpManager的消费事件
+    this.powerUpManager.onFoodConsumed(foodItem, snakeHead);
+
+    console.log(`🍽️ 吃到食物: ${foodType.name} (+${foodType.score}分)`);
+  }
+
+  /**
+   * 应用食物特殊效果
+   */
+  applyFoodEffect(effect, snakeHead) {
+    switch (effect.type) {
+      case 'speed':
+        // 速度提升效果
+        if (this.snakeController) {
+          this.snakeController.applySpeedBoost(effect.value, effect.duration);
+        }
+        break;
+
+      case 'shield':
+        // 护盾效果
+        if (this.snakeController) {
+          this.snakeController.applyShield(effect.value, effect.duration);
+        }
+        break;
+
+      case 'magnet':
+        // 磁铁效果
+        if (this.powerUpManager) {
+          this.powerUpManager.activateMagnetEffect(effect.value, effect.duration);
+        }
+        break;
+
+      // growth效果在processFoodConsumption中已经处理
     }
   }
 
@@ -518,7 +670,9 @@ export default class GameSceneSlim extends Phaser.Scene {
       const gameStats = this.gameLogic.getGameStats(this.snakeController);
       const gameState = this.gameLogic.getGameState();
 
-      this.gameRenderer.render(snake, this.food, this.isBlinking, gameStats, gameState);
+      // 传递所有活跃食物项给渲染器
+      const foodItemsArray = Array.from(this.activeFoodItems.values());
+      this.gameRenderer.render(snake, foodItemsArray, this.isBlinking, gameStats, gameState);
     }
   }
 
@@ -531,6 +685,49 @@ export default class GameSceneSlim extends Phaser.Scene {
     if (this.onGameOver) {
       this.onGameOver(result.score);
     }
+  }
+
+  /**
+   * 在蛇周围生成食物
+   */
+  spawnFoodNearSnake(snakeHead, snakeBody) {
+    const worldGridSize = this.snakeController.gridWidth;
+    const radius = 10; // 在蛇周围10格范围内生成食物
+    let attempts = 0;
+    const maxAttempts = 20;
+
+    while (attempts < maxAttempts) {
+      // 在蛇周围随机生成位置
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Math.random() * radius + 2; // 距离至少2格
+      const x = Math.floor(snakeHead.x + Math.cos(angle) * distance);
+      const y = Math.floor(snakeHead.y + Math.sin(angle) * distance);
+
+      // 确保位置在世界范围内且不与蛇重叠
+      if (x >= 0 && x < worldGridSize && y >= 0 && y < worldGridSize) {
+        const isValidPosition = !snakeBody.some(segment => segment.x === x && segment.y === y);
+
+        if (isValidPosition) {
+          // 创建食物对象
+          const foodId = `nearby_${Date.now()}_${Math.random()}`;
+          const foodType = this.powerUpManager.selectFoodType({ score: 0 });
+
+          return {
+            id: foodId,
+            type: foodType,
+            position: { x, y },
+            spawnTime: Date.now(),
+            animationTime: 0,
+            isConsumed: false,
+            visualEffects: []
+          };
+        }
+      }
+
+      attempts++;
+    }
+
+    return null; // 找不到合适位置
   }
 
   /**
@@ -574,8 +771,20 @@ export default class GameSceneSlim extends Phaser.Scene {
    */
   initializeMobileComponents() {
     try {
-      // 初始化触觉反馈
-      this.hapticFeedback = new HapticFeedback(HapticFeedback.createGamingConfig());
+      // 安全初始化触觉反馈 - 兼容Safari
+      this.hapticFeedback = null;
+      try {
+        this.hapticFeedback = new HapticFeedback(HapticFeedback.createGamingConfig());
+        console.log('触觉反馈初始化成功');
+      } catch (hapticError) {
+        console.warn('触觉反馈初始化失败，使用模拟反馈:', hapticError.message);
+        // 创建一个空的触觉反馈对象，避免后续调用出错
+        this.hapticFeedback = {
+          trigger: () => {
+            // 空实现，不执行任何操作
+          }
+        };
+      }
 
       // 初始化性能管理器
       this.performanceManager = new MobilePerformanceManager(this, {
@@ -587,31 +796,76 @@ export default class GameSceneSlim extends Phaser.Scene {
       this.mobileUIRenderer = new MobileUIRenderer(this, this.hapticFeedback);
       this.add.existing(this.mobileUIRenderer);
 
-      // 初始化输入处理器
-      this.mobileInputHandler = new MobileInputHandler({
-        filtering: { noiseThreshold: 3 },
-        gesture: { swipeMinDistance: 25 }
-      });
+      // 安全初始化输入处理器
+      try {
+        this.mobileInputHandler = new MobileInputHandler({
+          filtering: { noiseThreshold: 3 },
+          gesture: { swipeMinDistance: 25 }
+        });
+        console.log('输入处理器初始化成功');
+      } catch (inputError) {
+        console.warn('输入处理器初始化失败:', inputError.message);
+        this.mobileInputHandler = null;
+      }
 
-      // 初始化虚拟摇杆
-      this.mobileJoystick = new MobileJoystickController(this, {
-        baseX: 100,
-        baseY: -100,
-        baseRadius: 50,
-        maxDistance: 70
-      }, this.hapticFeedback);
+      // 安全初始化虚拟摇杆 - 这是最重要的移动端组件
+      try {
+        this.mobileJoystick = new MobileJoystickController(this, {
+          baseX: 100,
+          baseY: -100,
+          baseRadius: 50,
+          maxDistance: 70
+        }, this.hapticFeedback);
+        console.log('虚拟摇杆初始化成功');
+      } catch (joystickError) {
+        console.error('虚拟摇杆初始化失败:', joystickError.message);
+        this.mobileJoystick = null;
+        // 摇杆是必需的，如果失败则标记移动模式不可用
+        this.isMobileMode = false;
+        return;
+      }
 
       // 启用360度移动模式
-      this.snakeController.enable360Mode(true);
-      this.is360Mode = true;
+      if (this.snakeController) {
+        this.snakeController.enable360Mode(true);
+        this.is360Mode = true;
+      }
 
       // 设置移动端组件事件回调
-      this.setupMobileEventCallbacks();
+      try {
+        this.setupMobileEventCallbacks();
+        console.log('移动端事件回调设置成功');
+      } catch (callbackError) {
+        console.warn('移动端事件回调设置失败:', callbackError.message);
+      }
 
-      console.log('Mobile components initialized successfully');
+      console.log('✅ 移动端组件初始化完成');
     } catch (error) {
-      console.error('Failed to initialize mobile components:', error);
+      console.error('❌ 移动端组件初始化失败:', error);
+      console.error('错误详情:', error.message, error.stack);
       this.isMobileMode = false;
+
+      // 显示用户友好的错误信息
+      if (typeof this.add !== 'undefined') {
+        const errorText = this.add.text(
+          this.cameras.main.width / 2,
+          this.cameras.main.height / 2,
+          '移动端功能初始化失败\n将使用桌面模式',
+          {
+            fontSize: '20px',
+            fill: '#ff6b6b',
+            backgroundColor: '#000000',
+            padding: { x: 20, y: 10 }
+          }
+        ).setOrigin(0.5).setScrollFactor(0);
+
+        // 3秒后移除错误信息
+        this.time.delayedCall(3000, () => {
+          if (errorText && errorText.active) {
+            errorText.destroy();
+          }
+        });
+      }
     }
   }
 
@@ -909,7 +1163,9 @@ export default class GameSceneSlim extends Phaser.Scene {
       const gameState = this.gameLogic.getGameState();
 
       // 传统渲染器
-      this.gameRenderer.render(snake, this.food, this.isBlinking, gameStats, gameState);
+      // 传递所有活跃食物项给渲染器
+      const foodItemsArray = Array.from(this.activeFoodItems.values());
+      this.gameRenderer.render(snake, foodItemsArray, this.isBlinking, gameStats, gameState);
 
       // 移动端UI渲染器
       if (this.mobileUIRenderer && this.isMobileMode) {

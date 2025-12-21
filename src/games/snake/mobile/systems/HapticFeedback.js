@@ -125,15 +125,31 @@ export class HapticFeedback {
    * 检查基础振动支持
    */
   checkSupport() {
-    return 'vibrate' in navigator;
+    try {
+      // Safari兼容性检查：直接检查vibrate方法是否存在且可调用
+      return navigator && typeof navigator.vibrate === 'function';
+    } catch (error) {
+      console.warn('振动API检查失败:', error);
+      return false;
+    }
   }
 
   /**
    * 检查高级振动支持（如Vibration API的完整功能）
    */
   checkAdvancedSupport() {
-    // 检查是否支持模式振动
-    return this.isSupported && navigator.vibrate.length > 1;
+    // Safari兼容性处理：安全检查vibrate对象
+    if (!this.isSupported || !navigator.vibrate) {
+      return false;
+    }
+
+    try {
+      // 检查是否支持模式振动（通过检查vibrate方法参数）
+      return typeof navigator.vibrate === 'function' && navigator.vibrate.length >= 1;
+    } catch (error) {
+      console.warn('Vibration API检查失败:', error);
+      return false;
+    }
   }
 
   /**
