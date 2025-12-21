@@ -13,8 +13,9 @@ import {
 } from '../types/MobileTypes.js';
 
 export class MobileJoystickController {
-  constructor(phaserScene, config = {}) {
+  constructor(phaserScene, config = {}, hapticFeedback = null) {
     this.scene = phaserScene;
+    this.hapticFeedback = hapticFeedback;
 
     // 默认配置
     this.defaultConfig = {
@@ -108,8 +109,8 @@ export class MobileJoystickController {
     // 方向指示器
     this.indicatorGraphics = this.scene.add.graphics();
 
-    // 初始状态下隐藏摇杆
-    this.setOpacity(0);
+    // 初始状态下显示半透明摇杆（便于DevTools调试）
+    this.setOpacity(0.3);
   }
 
   /**
@@ -447,19 +448,9 @@ export class MobileJoystickController {
    * 触觉反馈
    */
   triggerHapticFeedback(type = 'light') {
-    if (!navigator.vibrate) return;
-
-    const patterns = {
-      light: [10],
-      medium: [20],
-      heavy: [30],
-      success: [10, 50, 10],
-      warning: [50, 30, 50],
-      error: [100]
-    };
-
-    const pattern = patterns[type] || patterns.light;
-    navigator.vibrate(pattern);
+    if (this.hapticFeedback) {
+      this.hapticFeedback.trigger(type);
+    }
   }
 
   /**

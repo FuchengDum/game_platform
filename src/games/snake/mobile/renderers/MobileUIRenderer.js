@@ -12,9 +12,10 @@ import {
 } from '../types/MobileTypes.js';
 
 export class MobileUIRenderer extends Phaser.GameObjects.Container {
-  constructor(scene) {
+  constructor(scene, hapticFeedback = null) {
     super(scene, 0, 0);
     this.scene = scene;
+    this.hapticFeedback = hapticFeedback;
 
     // 设备信息
     this.orientation = this.detectOrientation();
@@ -712,8 +713,8 @@ export class MobileUIRenderer extends Phaser.GameObjects.Container {
    */
   triggerPause() {
     // 触觉反馈
-    if (navigator.vibrate) {
-      navigator.vibrate(50);
+    if (this.hapticFeedback) {
+      this.hapticFeedback.trigger('buttonPress');
     }
 
     // 触发暂停事件（由场景处理）

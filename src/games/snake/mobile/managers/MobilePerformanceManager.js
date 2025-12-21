@@ -113,19 +113,24 @@ export class MobilePerformanceManager {
    * 初始化性能管理器
    */
   initialize() {
-    // 设置初始质量等级
-    this.setInitialQuality();
+    try {
+      // 设置初始质量等级
+      this.setInitialQuality();
 
-    // 开始性能监控
-    this.startMonitoring();
+      // 开始性能监控
+      this.startMonitoring();
 
-    // 监听电池和温度变化
-    this.setupDeviceMonitoring();
+      // 监听电池和温度变化
+      this.setupDeviceMonitoring();
 
-    // 监听页面可见性变化
-    this.setupVisibilityMonitoring();
+      // 监听页面可见性变化
+      this.setupVisibilityMonitoring();
 
-    console.log('MobilePerformanceManager initialized with quality:', this.currentQuality);
+      console.log('MobilePerformanceManager initialized with quality:', this.currentQuality);
+    } catch (error) {
+      console.error('MobilePerformanceManager: Initialization failed:', error.message);
+      // 继续执行，不阻止游戏启动
+    }
   }
 
   /**
@@ -581,14 +586,28 @@ export class MobilePerformanceManager {
    * 设置可见性监控
    */
   setupVisibilityMonitoring() {
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        // 页面隐藏时降低性能消耗
-        this.pausePerformanceMonitoring();
-      } else {
-        // 页面显示时恢复正常性能
-        this.resumePerformanceMonitoring();
+    // 检查浏览器是否支持visibility API
+    if (typeof document.visibilityState === 'undefined') {
+      console.warn('MobilePerformanceManager: Visibility API not supported');
+      return;
+    }
+
+    const handleVisibilityChange = () => {
+      try {
+        if (document.hidden) {
+          // 页面隐藏时降低性能消耗
+          this.pausePerformanceMonitoring();
+        } else {
+          // 页面显示时恢复正常性能
+          this.resumePerformanceMonitoring();
+        }
+      } catch (error) {
+        console.warn('MobilePerformanceManager: Visibility change handling failed:', error.message);
       }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange, {
+      passive: true
     });
   }
 
@@ -597,8 +616,15 @@ export class MobilePerformanceManager {
    */
   pausePerformanceMonitoring() {
     this.stopMonitoring();
-    if (this.scene && this.scene.game) {
-      this.scene.game.loop.sleep();
+    try {
+      // 安全检查Phaser游戏循环是否存在
+      if (this.scene && this.scene.game && this.scene.game.loop) {
+        this.scene.game.loop.sleep();
+      } else {
+        console.warn('MobilePerformanceManager: Game loop not available for pausing');
+      }
+    } catch (error) {
+      console.warn('MobilePerformanceManager: Failed to pause game loop:', error.message);
     }
   }
 
@@ -607,8 +633,18 @@ export class MobilePerformanceManager {
    */
   resumePerformanceMonitoring() {
     this.startMonitoring();
-    if (this.scene && this.scene.game) {
-      this.scene.game.loop.wake();
+    try {
+      // 安全检查Phaser游戏循环是否存在且可唤醒
+      if (this.scene &&
+          this.scene.game &&
+          this.scene.game.loop &&
+          typeof this.scene.game.loop.wake === 'function') {
+        this.scene.game.loop.wake();
+      } else {
+        console.warn('MobilePerformanceManager: Game loop not available for resuming');
+      }
+    } catch (error) {
+      console.warn('MobilePerformanceManager: Failed to resume game loop:', error.message);
     }
   }
 

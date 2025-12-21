@@ -228,8 +228,8 @@ export default class GameSceneSlim extends Phaser.Scene {
     const dy = y - centerY;
 
     // 添加触觉反馈（如果支持）
-    if (navigator.vibrate) {
-      navigator.vibrate(50); // 50ms短振动
+    if (this.hapticFeedback) {
+      this.hapticFeedback.trigger('light');
     }
 
     // 创建点击效果反馈
@@ -280,8 +280,8 @@ export default class GameSceneSlim extends Phaser.Scene {
    */
   processRealTimeSwipe(deltaX, deltaY) {
     // 添加触觉反馈
-    if (navigator.vibrate) {
-      navigator.vibrate(30); // 更短的振动，更快反馈
+    if (this.hapticFeedback) {
+      this.hapticFeedback.trigger('move');
     }
 
     // 创建滑动效果
@@ -417,30 +417,92 @@ export default class GameSceneSlim extends Phaser.Scene {
    * 移动蛇
    */
   moveSnake() {
-    // 先获取下一个头部位置（不移动蛇）
-    const nextHead = this.snakeController.getNextHeadPosition();
-
-    // 预检查碰撞
-    if (this.snakeController.checkCollisionAt(nextHead)) {
-      this.handleGameOver();
-      return;
-    }
-
-    // 如果没有碰撞，执行移动
-    const head = this.snakeController.move();
     let shouldGrow = false;
 
-    // 检查是否吃到食物
-    if (this.gameLogic.checkFoodCollision(head, this.food)) {
-      shouldGrow = true;
-      this.snakeController.eatFood();
-      const gridConfig = this.snakeController.getGridSize();
-      this.food = this.gameLogic.generateRandomFood(this.snakeController.getSnake(), gridConfig.gridCount);
-    }
+    if (this.is360Mode) {
+      // 360度模式：获取下一个头部位置进行碰撞检查
+      const nextHead = this.snakeController.getNextHeadPosition();
 
-    // 如果没有吃到食物，移除蛇尾
-    if (!shouldGrow) {
-      this.snakeController.removeTail();
+      if (!nextHead) return;
+
+      // 预检查碰撞
+      if (this.snakeController.checkCollisionAt(nextHead)) {
+        this.handleGameOver();
+
+        // 游戏结束触觉反馈
+        if (this.hapticFeedback) {
+          this.hapticFeedback.trigger('gameOver');
+        }
+        return;
+      }
+
+      // 如果没有碰撞，执行360度移动
+      const head = this.snakeController.move360();
+      if (!head) return;
+
+      // 检查是否吃到食物
+      if (this.gameLogic.checkFoodCollision(head, this.food)) {
+        shouldGrow = true;
+        this.snakeController.eatFood();
+
+        // 吃食物触觉反馈
+        if (this.hapticFeedback) {
+          this.hapticFeedback.trigger('eat');
+        }
+
+        const gridConfig = this.snakeController.getGridSize();
+        this.food = this.gameLogic.generateRandomFood(this.snakeController.getSnake(), gridConfig.gridCount);
+      }
+
+      // 如果没有吃到食物，移除蛇尾
+      if (!shouldGrow) {
+        this.snakeController.removeTail();
+      }
+
+      // 移动触觉反馈（仅在有实际移动时）
+      if (this.hapticFeedback && this.snakeController.isMoving()) {
+        this.hapticFeedback.trigger('move');
+      }
+
+    } else {
+      // 传统模式：获取下一个头部位置（不移动蛇）
+      const nextHead = this.snakeController.getNextHeadPosition();
+
+      if (!nextHead) return;
+
+      // 预检查碰撞
+      if (this.snakeController.checkCollisionAt(nextHead)) {
+        this.handleGameOver();
+
+        // 游戏结束触觉反馈
+        if (this.hapticFeedback) {
+          this.hapticFeedback.trigger('gameOver');
+        }
+        return;
+      }
+
+      // 如果没有碰撞，执行移动
+      const head = this.snakeController.move();
+      if (!head) return;
+
+      // 检查是否吃到食物
+      if (this.gameLogic.checkFoodCollision(head, this.food)) {
+        shouldGrow = true;
+        this.snakeController.eatFood();
+
+        // 吃食物触觉反馈
+        if (this.hapticFeedback) {
+          this.hapticFeedback.trigger('eat');
+        }
+
+        const gridConfig = this.snakeController.getGridSize();
+        this.food = this.gameLogic.generateRandomFood(this.snakeController.getSnake(), gridConfig.gridCount);
+      }
+
+      // 如果没有吃到食物，移除蛇尾
+      if (!shouldGrow) {
+        this.snakeController.removeTail();
+      }
     }
   }
 
@@ -483,8 +545,28 @@ export default class GameSceneSlim extends Phaser.Scene {
    */
   detectMobileDevice() {
     const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent) ||
-           (navigator.maxTouchPoints && navigator.maxTouchPoints > 1);
+
+    // 标准移动设备检测
+    const isStandardMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+
+    // 触摸支持检测
+    const hasTouchSupport = navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
+
+    // Chrome DevTools移动端模拟器检测
+    const isDevToolsMobile = userAgent.includes('Mobile') ||
+                              userAgent.includes('Android') ||
+                              hasTouchSupport ||
+                              window.innerWidth <= 768; // 小屏幕设备
+
+    // 调试信息
+    console.log('📱 Device Detection Debug:');
+    console.log('  - User Agent:', userAgent);
+    console.log('  - Standard Mobile:', isStandardMobile);
+    console.log('  - Touch Support:', hasTouchSupport);
+    console.log('  - DevTools Mobile:', isDevToolsMobile);
+    console.log('  - Screen Width:', window.innerWidth);
+
+    return isStandardMobile || isDevToolsMobile;
   }
 
   /**
@@ -502,7 +584,7 @@ export default class GameSceneSlim extends Phaser.Scene {
       });
 
       // 初始化移动端UI渲染器
-      this.mobileUIRenderer = new MobileUIRenderer(this);
+      this.mobileUIRenderer = new MobileUIRenderer(this, this.hapticFeedback);
       this.add.existing(this.mobileUIRenderer);
 
       // 初始化输入处理器
@@ -517,7 +599,7 @@ export default class GameSceneSlim extends Phaser.Scene {
         baseY: -100,
         baseRadius: 50,
         maxDistance: 70
-      });
+      }, this.hapticFeedback);
 
       // 启用360度移动模式
       this.snakeController.enable360Mode(true);
@@ -813,66 +895,7 @@ export default class GameSceneSlim extends Phaser.Scene {
     }
   }
 
-  /**
-   * 更新移动蛇的移动逻辑
-   */
-  moveSnake() {
-    let head;
-
-    if (this.is360Mode) {
-      // 使用360度移动
-      head = this.snakeController.move360();
-    } else {
-      // 使用传统移动
-      head = this.snakeController.move();
-    }
-
-    if (!head) return;
-
-    // 预检查碰撞
-    if (this.snakeController.checkCollisionAt(head)) {
-      this.handleGameOver();
-
-      // 游戏结束触觉反馈
-      if (this.hapticFeedback) {
-        this.hapticFeedback.trigger('gameOver');
-      }
-      return;
-    }
-
-    let shouldGrow = false;
-
-    // 检查是否吃到食物
-    if (this.gameLogic.checkFoodCollision(head, this.food)) {
-      shouldGrow = true;
-      this.snakeController.eatFood();
-      const gridConfig = this.snakeController.getGridSize();
-      this.food = this.gameLogic.generateRandomFood(this.snakeController.getSnake(), gridConfig.gridCount);
-
-      // 吃到食物的触觉反馈
-      if (this.hapticFeedback) {
-        this.hapticFeedback.trigger('eat');
-      }
-
-      // 更新UI显示
-      if (this.mobileUIRenderer) {
-        const stats = this.gameLogic.getGameStats(this.snakeController);
-        this.mobileUIRenderer.updateScore(stats.score);
-        this.mobileUIRenderer.updateLevel(this.snakeController.speedLevel);
-      }
-    }
-
-    // 如果没有吃到食物，移除蛇尾
-    if (!shouldGrow) {
-      this.snakeController.removeTail();
-    }
-
-    // 移动触觉反馈（轻量级）
-    if (this.hapticFeedback && this.is360Mode && this.snakeController.isMoving()) {
-      this.hapticFeedback.trigger('move');
-    }
-  }
-
+  
   /**
    * 渲染游戏画面（移动端增强版）
    */
