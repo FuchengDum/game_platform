@@ -93,89 +93,62 @@ export class MobileJoystickController {
     this.config.baseX = this.config.baseX < 0 ? width + this.config.baseX : this.config.baseX;
     this.config.baseY = this.config.baseY < 0 ? height + this.config.baseY : this.config.baseY;
 
-    // 移动设备适配：调整摇杆位置到更适合触摸的区域
+    // 移动设备适配：固定大小，不动态调整
     if (deviceInfo.isMobile) {
       // 检测横屏模式
       const isLandscape = width > height;
 
-      // 在移动设备上，将摇杆放在左下角更容易操作的位置
-      // 根据屏幕尺寸和方向动态调整摇杆大小和位置
-      let screenMinDimension, scaleFactor, minMargin;
+      // 移动端：固定摇杆大小（减小尺寸）
+      const fixedBaseRadius = 60;  // 固定底座半径 60px（从80减小到60）
+      const fixedStickRadius = 39;  // 固定手柄半径 39px（底座的65%，从52减小到39）
+      const fixedMaxDistance = 75;  // 固定最大移动距离（从100减小到75）
+
+      this.config.baseRadius = fixedBaseRadius;
+      this.config.stickRadius = fixedStickRadius;
+      this.config.maxDistance = fixedMaxDistance;
+
+      // 计算摇杆位置
+      // 摇杆底座半径60px + maxDistance 75px + 安全边距25px = 160px
+      const margin = 160; // 增加边距确保摇杆完整显示
 
       if (isLandscape) {
-        // 横屏模式：使用较小维度作为基准，增大比例系数
-        screenMinDimension = Math.min(width, height);
-        scaleFactor = 0.10; // 横屏时增大到10%
-        minMargin = Math.max(120, screenMinDimension * 0.15); // 横屏时的边距
-
-        // 横屏时，将摇杆位置调整到更居中的位置
-        this.config.baseX = minMargin;
-        this.config.baseY = height / 2; // 横屏时居中垂直位置
-
-        MobileUtils.debug('Joystick', '📱 横屏模式检测');
+        // 横屏模式：左下角
+        this.config.baseX = margin;
+        this.config.baseY = height - margin;
+        MobileUtils.debug('Joystick', '📱 移动端横屏 - 摇杆在左下角（固定大小 60px）');
       } else {
-        // 竖屏模式：原有的逻辑
-        screenMinDimension = Math.min(width, height);
-        scaleFactor = 0.08; // 竖屏时保持8%
-        minMargin = Math.max(150, screenMinDimension * 0.20);
+        // 竖屏模式：左下角
+        this.config.baseX = margin;
+        this.config.baseY = height - margin;
+        MobileUtils.debug('Joystick', '📱 移动端竖屏 - 摇杆在左下角（固定大小 60px）');
       }
 
-      const dynamicRadius = Math.max(this.config.baseRadius, screenMinDimension * scaleFactor);
-
-      // 动态调整摇杆大小
-      this.config.baseRadius = dynamicRadius;
-      this.config.stickRadius = dynamicRadius * 0.65; // 手柄为底座的65%
-      this.config.maxDistance = dynamicRadius * 1.25; // 最大移动距离为底座的125%
-
-      // 确保摇杆在可见区域内且有足够的边距
-      if (!isLandscape) {
-        // 竖屏模式的位置计算
-        this.config.baseX = Math.max(minMargin, this.config.baseX);
-        this.config.baseY = Math.min(height - minMargin, this.config.baseY);
-      }
-
-      // 特殊处理：Chrome DevTools移动端模拟器检测
-      const isChromeMobileEmulator = deviceInfo.browser.chrome &&
-                                    window.navigator.userAgent.includes('Mobile') &&
-                                    (width <= 600 || height <= 600);
-
-      if (isChromeMobileEmulator) {
-        console.warn('🔧 检测到Chrome DevTools移动端模拟器，应用特殊优化');
-        // 模拟器中强制使用更大的尺寸确保可见性
-        const emulatorScaleFactor = 1.5;
-        this.config.baseRadius *= emulatorScaleFactor;
-        this.config.stickRadius *= emulatorScaleFactor;
-        this.config.maxDistance *= emulatorScaleFactor;
-
-        // 确保在模拟器中有足够大的位置
-        this.config.baseX = Math.max(200, this.config.baseX);
-        this.config.baseY = height / 2;
-      }
-
-      MobileUtils.debug('Joystick', 'Dynamic size adjustment for mobile', {
+      MobileUtils.debug('Joystick', 'Mobile joystick configured (fixed size)', {
         isLandscape,
-        screenMinDimension,
         baseRadius: this.config.baseRadius,
         stickRadius: this.config.stickRadius,
         maxDistance: this.config.maxDistance,
-        minMargin,
-        finalPosition: { x: this.config.baseX, y: this.config.baseY },
-        isChromeMobileEmulator,
-        cameraSize: `${width}×${height}`
+        position: { x: this.config.baseX, y: this.config.baseY }
       });
     } else {
-      // PC端适配：也根据屏幕尺寸调整摇杆大小
-      const screenMinDimension = Math.min(width, height);
-      const dynamicRadius = Math.max(this.config.baseRadius, screenMinDimension * 0.06); // PC端为屏幕的6%
+      // PC端：也使用固定大小
+      const fixedBaseRadius = 50; // PC端也减小
+      const fixedStickRadius = 32;
+      const fixedMaxDistance = 62;
 
-      this.config.baseRadius = dynamicRadius;
-      this.config.stickRadius = dynamicRadius * 0.65;
-      this.config.maxDistance = dynamicRadius * 1.25;
+      this.config.baseRadius = fixedBaseRadius;
+      this.config.stickRadius = fixedStickRadius;
+      this.config.maxDistance = fixedMaxDistance;
 
-      MobileUtils.debug('Joystick', 'Dynamic size adjustment for desktop', {
-        screenMinDimension,
+      // PC端：居中位置
+      this.config.baseX = width / 2;
+      this.config.baseY = height / 2;
+
+      MobileUtils.debug('Joystick', 'Desktop joystick configured (fixed size)', {
         baseRadius: this.config.baseRadius,
-        stickRadius: this.config.stickRadius
+        stickRadius: this.config.stickRadius,
+        maxDistance: this.config.maxDistance,
+        position: { x: this.config.baseX, y: this.config.baseY }
       });
     }
 
@@ -185,7 +158,7 @@ export class MobileJoystickController {
     this.joystickData.stickX = this.config.baseX;
     this.joystickData.stickY = this.config.baseY;
 
-    // 浏览器特殊处理
+    // 浏览器特殊处理（仅透明度和颜色，不调整大小）
     if (deviceInfo.browser.safari) {
       // Safari特殊处理：大幅提高透明度确保可见性
       this.config.opacity.base = 1.0;  // 完全不透明
@@ -196,20 +169,11 @@ export class MobileJoystickController {
       this.config.colors.base = 0xbbbbbb;  // 使用非常亮的颜色
       this.config.colors.stick = 0xeeeeee;  // 使用非常亮的颜色
 
-      // Safari中增大摇杆尺寸
-      if (deviceInfo.isMobile) {
-        this.config.baseRadius *= 1.2;
-        this.config.stickRadius *= 1.2;
-        this.config.maxDistance *= 1.2;
-      }
-
-      MobileUtils.debug('Joystick', 'Safari detected - 最大透明度和亮度调整', {
+      MobileUtils.debug('Joystick', 'Safari detected - 透明度和亮度调整（不调整大小）', {
         baseOpacity: this.config.opacity.base,
         stickOpacity: this.config.opacity.stick,
         baseColor: this.config.colors.base.toString(16),
-        stickColor: this.config.colors.stick.toString(16),
-        adjustedBaseRadius: this.config.baseRadius,
-        adjustedStickRadius: this.config.stickRadius
+        stickColor: this.config.colors.stick.toString(16)
       });
     } else if (deviceInfo.browser.chrome) {
       // Chrome特殊处理：确保触摸事件正确绑定
@@ -225,17 +189,7 @@ export class MobileJoystickController {
       });
     }
 
-    // 响应式调整：根据屏幕尺寸调整摇杆大小
-    const minDimension = Math.min(width, height);
-    if (minDimension < 600) {
-      const scale = minDimension / 600;
-      this.config.baseRadius *= scale;
-      this.config.stickRadius *= scale;
-      this.config.maxDistance *= scale;
-      MobileUtils.debug('Joystick', 'Responsive scaling applied', { scale });
-    }
-
-    // 创建视觉元素
+    // 创建视觉元素（不进行响应式调整）
     this.createVisualElements();
 
     // 设置触摸事件监听器（Phaser层面）
@@ -854,11 +808,25 @@ export class MobileJoystickController {
       isMobile: deviceInfo.isMobile,
       browser: deviceInfo.browser,
       touchId: pointer.pointerId,
-      joystickPosition: { x: this.config.baseX, y: this.config.baseY }
+      joystickPosition: { x: this.config.baseX, y: this.config.baseY },
+      joystickRadius: this.config.baseRadius,
+      maxDistance: this.config.maxDistance
     });
 
     // 检查是否在摇杆区域内
     const handled = this.handleTouchStart(touchPoint);
+
+    if (!handled) {
+      MobileUtils.debug('Joystick', 'Touch outside joystick area', {
+        touchPosition: { x: touchPoint.x, y: touchPoint.y },
+        joystickPosition: { x: this.config.baseX, y: this.config.baseY },
+        distance: Math.sqrt(
+          Math.pow(touchPoint.x - this.config.baseX, 2) +
+          Math.pow(touchPoint.y - this.config.baseY, 2)
+        ),
+        effectiveRadius: deviceInfo.isMobile ? this.config.maxDistance * 2 : this.config.maxDistance * 1.5
+      });
+    }
 
     if (handled) {
       // 防止事件传播 - Chrome兼容性处理

@@ -155,23 +155,28 @@ export class MobileUIRenderer extends Phaser.GameObjects.Container {
   createContainers() {
     // 游戏板容器
     this.containers.gameBoard = this.scene.add.container(0, 0);
+    this.containers.gameBoard.setDepth(10);
     this.add(this.containers.gameBoard);
 
     // 摇杆容器
     this.containers.joystick = this.scene.add.container(0, 0);
+    this.containers.joystick.setDepth(1000);
     this.add(this.containers.joystick);
     this.containers.joystick.setVisible(false);
 
-    // HUD容器
+    // HUD容器 - 设置最高深度确保显示在最上层
     this.containers.hud = this.scene.add.container(0, 0);
+    this.containers.hud.setDepth(2000);
     this.add(this.containers.hud);
 
     // 特效容器
     this.containers.effects = this.scene.add.container(0, 0);
+    this.containers.effects.setDepth(500);
     this.add(this.containers.effects);
 
     // 菜单容器
     this.containers.menus = this.scene.add.container(0, 0);
+    this.containers.menus.setDepth(3000);
     this.add(this.containers.menus);
     this.containers.menus.setVisible(false);
   }
@@ -186,20 +191,25 @@ export class MobileUIRenderer extends Phaser.GameObjects.Container {
       fontFamily: 'Arial, sans-serif',
       fill: '#ffffff',
       stroke: '#000000',
-      strokeThickness: 3
-    }).setOrigin(0.5);
+      strokeThickness: 3,
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      padding: { x: 8, y: 4 }
+    }).setOrigin(0.5).setScrollFactor(0);
 
     // 等级显示
     this.elements.level = this.scene.add.text(0, 0, 'Lv.1', {
       fontSize: this.getResponsiveFontSize(20),
       fontFamily: 'Arial, sans-serif',
-      fill: '#ffffff',
+      fill: '#fbbf24',
       stroke: '#000000',
-      strokeThickness: 3
-    }).setOrigin(0.5);
+      strokeThickness: 3,
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      padding: { x: 6, y: 3 }
+    }).setOrigin(0.5).setScrollFactor(0);
 
     // 暂停按钮
     this.elements.pauseButton = this.scene.add.graphics();
+    this.elements.pauseButton.setScrollFactor(0);
     this.drawPauseButton();
 
     // 方向指示器
@@ -208,62 +218,85 @@ export class MobileUIRenderer extends Phaser.GameObjects.Container {
 
     // 添加到HUD容器
     this.containers.hud.add([this.elements.score, this.elements.level, this.elements.pauseButton]);
+
+    console.log('✅ MobileUIRenderer HUD元素已创建', {
+      score: '✓',
+      level: '✓',
+      pauseButton: '✓',
+      hudContainerDepth: this.containers.hud.depth
+    });
   }
 
   /**
    * 绘制暂停按钮
    */
   drawPauseButton() {
+    // 检查元素是否存在且场景未被销毁
+    if (!this.scene || !this.scene.sys || this.scene.sys.queue === null) {
+      console.warn('⚠️ MobileUIRenderer: 场景已销毁，跳过暂停按钮绘制');
+      return;
+    }
+
+    if (!this.elements.pauseButton) {
+      console.warn('⚠️ MobileUIRenderer: pauseButton未初始化，跳过绘制');
+      return;
+    }
+
     const button = this.elements.pauseButton;
     const size = this.getResponsiveSize(40);
 
-    button.clear();
-
-    // 按钮背景
-    button.fillStyle(0x333333, 0.8);
-    button.fillRoundedRect(-size/2, -size/2, size, size, 8);
-
-    // 暂停图标（两条竖线）
-    button.fillStyle(0xffffff, 1);
-    const barWidth = size * 0.2;
-    const barHeight = size * 0.5;
-    const spacing = size * 0.15;
-
-    button.fillRect(-spacing - barWidth/2, -barHeight/2, barWidth, barHeight);
-    button.fillRect(spacing - barWidth/2, -barHeight/2, barWidth, barHeight);
-
-    // 设置交互区域
-    button.setInteractive(
-      new Phaser.Geom.Rectangle(-size/2, -size/2, size, size),
-      Phaser.Geom.Rectangle.Contains
-    );
-
-    // 添加点击事件
-    button.on('pointerdown', () => {
-      this.triggerPause();
-    });
-
-    // 悬停效果
-    button.on('pointerover', () => {
+    try {
       button.clear();
-      button.fillStyle(0x555555, 0.9);
+
+      // 按钮背景
+      button.fillStyle(0x333333, 0.8);
       button.fillRoundedRect(-size/2, -size/2, size, size, 8);
 
+      // 暂停图标（两条竖线）
       button.fillStyle(0xffffff, 1);
+      const barWidth = size * 0.2;
+      const barHeight = size * 0.5;
+      const spacing = size * 0.15;
+
       button.fillRect(-spacing - barWidth/2, -barHeight/2, barWidth, barHeight);
       button.fillRect(spacing - barWidth/2, -barHeight/2, barWidth, barHeight);
-    });
 
-    button.on('pointerout', () => {
-      this.drawPauseButton();
-    });
+      // 设置交互区域
+      button.setInteractive(
+        new Phaser.Geom.Rectangle(-size/2, -size/2, size, size),
+        Phaser.Geom.Rectangle.Contains
+      );
+
+      // 添加点击事件
+      button.on('pointerdown', () => {
+        this.triggerPause();
+      });
+
+      // 悬停效果
+      button.on('pointerover', () => {
+        button.clear();
+        button.fillStyle(0x555555, 0.9);
+        button.fillRoundedRect(-size/2, -size/2, size, size, 8);
+
+        button.fillStyle(0xffffff, 1);
+        button.fillRect(-spacing - barWidth/2, -barHeight/2, barWidth, barHeight);
+        button.fillRect(spacing - barWidth/2, -barHeight/2, barWidth, barHeight);
+      });
+
+      button.on('pointerout', () => {
+        this.drawPauseButton();
+      });
+    } catch (error) {
+      console.error('❌ MobileUIRenderer: 绘制暂停按钮失败', error);
+    }
   }
 
   /**
    * 设置方向变化监听器
    */
   setupOrientationListener() {
-    window.addEventListener('resize', () => {
+    // 保存监听器引用，以便在销毁时正确移除
+    this.orientationListener = () => {
       const newOrientation = this.detectOrientation();
       if (newOrientation.type !== this.orientation.type ||
           newOrientation.width !== this.orientation.width ||
@@ -272,26 +305,38 @@ export class MobileUIRenderer extends Phaser.GameObjects.Container {
         this.safeArea = this.getSafeArea();
         this.updateLayout(newOrientation);
       }
-    });
+    };
+
+    window.addEventListener('resize', this.orientationListener);
   }
 
   /**
    * 更新布局
    */
   updateLayout(orientation) {
-    this.layout = this.calculateLayout(orientation);
+    // 检查场景是否已被销毁
+    if (!this.scene || !this.scene.sys || this.scene.sys.queue === null) {
+      console.warn('⚠️ MobileUIRenderer: 场景已销毁，跳过布局更新');
+      return;
+    }
 
-    // 更新容器位置和大小
-    this.updateContainers();
+    try {
+      this.layout = this.calculateLayout(orientation);
 
-    // 更新UI元素位置
-    this.updateUIElements();
+      // 更新容器位置和大小
+      this.updateContainers();
 
-    // 调整字体大小
-    this.adjustFontSizes();
+      // 更新UI元素位置
+      this.updateUIElements();
 
-    // 调整按钮大小
-    this.adjustButtonSizes();
+      // 调整字体大小
+      this.adjustFontSizes();
+
+      // 调整按钮大小
+      this.adjustButtonSizes();
+    } catch (error) {
+      console.error('❌ MobileUIRenderer: 更新布局失败', error);
+    }
   }
 
   /**
@@ -300,6 +345,12 @@ export class MobileUIRenderer extends Phaser.GameObjects.Container {
   calculateLayout(orientation) {
     const { width, height, isLandscape } = orientation;
     const { safeArea } = this;
+
+    console.log('📐 MobileUIRenderer计算布局:', {
+      orientation: { width, height, isLandscape },
+      safeArea,
+      sceneSize: this.scene ? `${this.scene.cameras.main.width}×${this.scene.cameras.main.height}` : 'N/A'
+    });
 
     const layout = { ...this.layout };
 
@@ -319,33 +370,39 @@ export class MobileUIRenderer extends Phaser.GameObjects.Container {
         scale: Math.min(gameBoardWidth / 600, gameBoardHeight / 600) // 基准600x600
       };
 
-      // 摇杆位置（左下角）
+      // 摇杆位置（左下角）- 使用160边距匹配摇杆实际位置
       layout.joystick = {
-        x: safeArea.left + 100,
-        y: height - safeArea.bottom - 100,
+        x: 160,  // 固定左边距
+        y: height - 160,  // 固定底边距
         width: 160,
         height: 160,
         visible: true
       };
 
-      // HUD位置
+      // HUD位置 - 简化并使用固定边距
       layout.hud.score = {
-        x: width - safeArea.right - 100,
-        y: safeArea.top + 50,
+        x: width - 80,   // 距离右边80
+        y: 30,           // 距离顶部30
         visible: true
       };
 
       layout.hud.level = {
-        x: width - safeArea.right - 100,
-        y: safeArea.top + 90,
+        x: width - 80,   // 距离右边80
+        y: 70,           // 距离顶部70（score下方40px）
         visible: true
       };
 
       layout.hud.pause = {
-        x: width - safeArea.right - 50,
-        y: safeArea.top + 50,
+        x: width - 30,   // 距离右边30
+        y: 30,           // 距离顶部30
         visible: true
       };
+
+      console.log('✅ 横屏HUD位置计算完成:', {
+        score: layout.hud.score,
+        level: layout.hud.level,
+        pause: layout.hud.pause
+      });
 
     } else {
       // 竖屏模式
@@ -426,16 +483,38 @@ export class MobileUIRenderer extends Phaser.GameObjects.Container {
     // 更新暂停按钮
     this.elements.pauseButton.setPosition(hud.pause.x, hud.pause.y);
     this.elements.pauseButton.setVisible(hud.pause.visible);
+
+    console.log('📱 MobileUIRenderer HUD位置更新:', {
+      sceneSize: `${this.orientation.width}×${this.orientation.height}`,
+      score: { x: hud.score.x, y: hud.score.y, visible: hud.score.visible },
+      level: { x: hud.level.x, y: hud.level.y, visible: hud.level.visible },
+      pause: { x: hud.pause.x, y: hud.pause.y, visible: hud.pause.visible }
+    });
   }
 
   /**
    * 调整字体大小
    */
   adjustFontSizes() {
+    // 检查元素是否存在且场景未被销毁
+    if (!this.scene || !this.scene.sys || this.scene.sys.queue === null) {
+      console.warn('⚠️ MobileUIRenderer: 场景已销毁，跳过字体大小调整');
+      return;
+    }
+
+    if (!this.elements.score || !this.elements.level) {
+      console.warn('⚠️ MobileUIRenderer: UI元素未初始化，跳过字体大小调整');
+      return;
+    }
+
     const scaleFactor = this.layout.gameBoard.scale;
 
-    this.elements.score.setFontSize(this.getResponsiveFontSize(24 * scaleFactor));
-    this.elements.level.setFontSize(this.getResponsiveFontSize(20 * scaleFactor));
+    try {
+      this.elements.score.setFontSize(this.getResponsiveFontSize(24 * scaleFactor));
+      this.elements.level.setFontSize(this.getResponsiveFontSize(20 * scaleFactor));
+    } catch (error) {
+      console.error('❌ MobileUIRenderer: 调整字体大小失败', error);
+    }
   }
 
   /**
@@ -698,6 +777,10 @@ export class MobileUIRenderer extends Phaser.GameObjects.Container {
    * 更新分数显示
    */
   updateScore(score) {
+    if (!this.elements.score) {
+      console.warn('⚠️ MobileUIRenderer: score元素不存在');
+      return;
+    }
     this.elements.score.setText(score.toString());
   }
 
@@ -705,6 +788,10 @@ export class MobileUIRenderer extends Phaser.GameObjects.Container {
    * 更新等级显示
    */
   updateLevel(level) {
+    if (!this.elements.level) {
+      console.warn('⚠️ MobileUIRenderer: level元素不存在');
+      return;
+    }
     this.elements.level.setText(`Lv.${level}`);
   }
 
@@ -753,15 +840,28 @@ export class MobileUIRenderer extends Phaser.GameObjects.Container {
    * 销毁渲染器
    */
   destroy() {
-    // 移除事件监听器
-    window.removeEventListener('resize', this.setupOrientationListener);
+    // 移除事件监听器（使用保存的引用）
+    if (this.orientationListener) {
+      window.removeEventListener('resize', this.orientationListener);
+      this.orientationListener = null;
+    }
 
-    // 销毁所有元素
-    this.containers.gameBoard.destroy(true);
-    this.containers.joystick.destroy(true);
-    this.containers.hud.destroy(true);
-    this.containers.effects.destroy(true);
-    this.containers.menus.destroy(true);
+    // 销毁所有元素（添加存在性检查）
+    if (this.containers.gameBoard) {
+      this.containers.gameBoard.destroy(true);
+    }
+    if (this.containers.joystick) {
+      this.containers.joystick.destroy(true);
+    }
+    if (this.containers.hud) {
+      this.containers.hud.destroy(true);
+    }
+    if (this.containers.effects) {
+      this.containers.effects.destroy(true);
+    }
+    if (this.containers.menus) {
+      this.containers.menus.destroy(true);
+    }
 
     super.destroy();
   }

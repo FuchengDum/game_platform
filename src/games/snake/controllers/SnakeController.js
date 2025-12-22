@@ -53,9 +53,11 @@ export class SnakeController {
    * 初始化蛇
    */
   init() {
-    // 根据网格大小设置蛇的初始位置（居中）
-    const centerX = Math.floor(this.gridWidth / 2);
-    const centerY = Math.floor(this.gridHeight / 2);
+    // 根据视口网格大小设置蛇的初始位置（让蛇出现在视口中心）
+    // 而不是世界中心，避免蛇出现在视口外
+    const viewportGridSize = this.gridConfig.viewportGridSize || this.gridConfig.gridCount || 25;
+    const centerX = Math.floor(viewportGridSize / 2);
+    const centerY = Math.floor(viewportGridSize / 2);
 
     this.snake = [
       { x: centerX, y: centerY },
@@ -69,6 +71,13 @@ export class SnakeController {
     this.foodCount = 0;
     this.speedLevel = 1;
     this.moveTime = 0;
+
+    console.log('🐍 蛇初始化位置:', {
+      世界大小: `${this.gridWidth}×${this.gridHeight}`,
+      视口大小: `${viewportGridSize}×${viewportGridSize}`,
+      初始位置: `(${centerX}, ${centerY})`,
+      完整蛇身: this.snake.map(s => `(${s.x}, ${s.y})`).join(', ')
+    });
 
     // 初始化360度移动状态
     this.is360Mode = false;
