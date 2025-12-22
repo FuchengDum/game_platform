@@ -73,7 +73,61 @@ export default class GameSceneSlim extends Phaser.Scene {
    * 创建游戏
    */
   create() {
-    // 强制更新相机尺寸，确保与容器一致
+    // 获取容器的实际尺寸并强制更新场景尺寸
+    const forceCorrectSceneSize = () => {
+      const container = this.sys.game.canvas.parentElement;
+      if (!container) return;
+
+      // 使用相同的容器尺寸检测逻辑
+      let containerWidth = container.offsetWidth;
+      let containerHeight = container.offsetHeight;
+
+      // 多层尺寸检测 - 移动端优先使用窗口尺寸
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                      window.innerWidth < 768;
+
+      if (isMobile) {
+        // 移动端：直接使用窗口尺寸
+        containerWidth = window.innerWidth;
+        containerHeight = window.innerHeight;
+        console.log('📱 移动端：使用窗口尺寸强制场景');
+      } else {
+        // 桌面端：使用容器尺寸检测逻辑
+        if (containerWidth <= 600 || containerHeight <= 600) {
+          const rect = container.getBoundingClientRect();
+          if (rect.width > containerWidth || rect.height > containerHeight) {
+            containerWidth = rect.width;
+            containerHeight = rect.height;
+          }
+        }
+
+        if (containerWidth <= 600 || containerHeight <= 600) {
+          const windowWidth = window.innerWidth;
+          const windowHeight = window.innerHeight;
+          if (windowWidth > containerWidth || windowHeight > containerHeight) {
+            containerWidth = windowWidth;
+            containerHeight = windowHeight;
+          }
+        }
+      }
+
+      console.log('🔧 强制场景尺寸更新:', {
+        containerSize: `${containerWidth}×${containerHeight}`,
+        currentSceneSize: `${this.cameras.main.width}×${this.cameras.main.height}`,
+        needsUpdate: containerWidth !== this.cameras.main.width || containerHeight !== this.cameras.main.height
+      });
+
+      // 如果容器尺寸与场景尺寸不同，强制更新
+      if (containerWidth !== this.cameras.main.width || containerHeight !== this.cameras.main.height) {
+        this.scale.resize(containerWidth, containerHeight);
+        console.log('✅ 场景尺寸已强制更新到容器尺寸');
+      }
+    };
+
+    // 立即执行一次
+    forceCorrectSceneSize();
+
+    // 设置更新函数
     const updateSceneSize = () => {
       const sceneWidth = this.cameras.main.width;
       const sceneHeight = this.cameras.main.height;
@@ -96,6 +150,33 @@ export default class GameSceneSlim extends Phaser.Scene {
     // 立即更新一次
     updateSceneSize();
 
+    // 延迟检查，确保场景尺寸正确
+    setTimeout(() => {
+      const sceneWidth = this.cameras.main.width;
+      const sceneHeight = this.cameras.main.height;
+
+      console.log('🔍 延迟检查场景尺寸:', {
+        sceneSize: `${sceneWidth}×${sceneHeight}`,
+        isLandscape: sceneWidth > sceneHeight,
+        needsCorrection: sceneWidth <= 600 || sceneHeight <= 600
+      });
+
+      // 如果场景尺寸仍然异常，再次强制更新
+      if (sceneWidth <= 600 || sceneHeight <= 600) {
+        forceCorrectSceneSize();
+
+        // 再次检查
+        setTimeout(() => {
+          const finalWidth = this.cameras.main.width;
+          const finalHeight = this.cameras.main.height;
+          console.log('🔍 最终场景尺寸检查:', {
+            finalSize: `${finalWidth}×${finalHeight}`,
+            finalIsLandscape: finalWidth > finalHeight
+          });
+        }, 100);
+      }
+    }, 100);
+
     // 监听resize事件
     this.events.on('resize', updateSceneSize);
 
@@ -103,6 +184,12 @@ export default class GameSceneSlim extends Phaser.Scene {
     this.handleWindowResize = () => {
       setTimeout(() => {
         // 延迟执行，确保DOM更新完成
+        // 检查场景是否已被销毁
+        if (!this.sys || !this.sys.game || !this.sys.game.canvas) {
+          console.warn('⚠️ GameSceneSlim: 场景已销毁，跳过window resize处理');
+          return;
+        }
+
         const container = this.sys.game.canvas.parentElement;
         if (container) {
           console.log('🎮 Window resize detected, forcing scene update');
@@ -118,8 +205,21 @@ export default class GameSceneSlim extends Phaser.Scene {
       console.log('🎮 延迟强制检查场景尺寸...');
       const container = this.sys.game.canvas.parentElement;
       if (container) {
-        const containerWidth = container.offsetWidth;
-        const containerHeight = container.offsetHeight;
+        // 移动端：使用窗口尺寸；PC端：使用容器尺寸
+        let containerWidth, containerHeight;
+
+        if (this.isMobileMode) {
+          containerWidth = window.innerWidth;
+          containerHeight = window.innerHeight;
+          console.log('📱 延迟检查：移动端使用窗口尺寸', {
+            window: `${window.innerWidth}×${window.innerHeight}`,
+            container: `${container.offsetWidth}×${container.offsetHeight}`
+          });
+        } else {
+          containerWidth = container.offsetWidth;
+          containerHeight = container.offsetHeight;
+        }
+
         const sceneWidth = this.cameras.main.width;
         const sceneHeight = this.cameras.main.height;
 
@@ -827,58 +927,31 @@ export default class GameSceneSlim extends Phaser.Scene {
         });
         return;
       }
-      const screenMinDimension = Math.min(sceneWidth, sceneHeight);
 
       // 检测是否为横屏模式
       const isLandscape = sceneWidth > sceneHeight;
 
-      // 根据设备类型和屏幕方向调整摇杆大小
-      let joystickRadius;
-      let joystickMarginX, joystickMarginY;
+      // 固定摇杆位置，不调整大小
+      // 摇杆底座半径60px + maxDistance 75px + 安全边距20px = 约155px
+      const margin = this.isMobileMode ? 160 : 100;
+      let joystickX, joystickY;
 
       if (this.isMobileMode) {
-        if (isLandscape) {
-          // 横屏模式：基于屏幕较小维度（高度）计算摇杆大小，但适当增大确保可见性
-          joystickRadius = Math.max(60, Math.min(80, sceneHeight * 0.12)); // 增大最大限制到80px，比例提升到12%
-          joystickMarginX = Math.max(joystickRadius + 30, 120); // 增大左边距确保不贴边
-          joystickMarginY = sceneHeight / 2; // 横屏时放在垂直中央位置
-
-          console.log('🎮 横屏模式摇杆调整:', {
-            sceneWidth,
-            sceneHeight,
-            joystickRadius,
-            joystickMarginX,
-            joystickMarginY,
-            finalPosition: '左侧中央'
-          });
-        } else {
-          // 竖屏模式：正常计算
-          joystickRadius = Math.max(80, screenMinDimension * 0.08); // 最小80px，或屏幕的8%
-          joystickMarginX = Math.max(joystickRadius + 40, 180); // 更大的边距
-          joystickMarginY = joystickMarginX; // 竖屏时边距相同
-        }
+        // 移动端：固定在左下角（确保完整显示）
+        joystickX = margin;
+        joystickY = sceneHeight - margin;
       } else {
-        // PC端：中等大小的摇杆
-        joystickRadius = Math.max(60, screenMinDimension * 0.06); // 最小60px，或屏幕的6%
-        joystickMarginX = Math.max(joystickRadius + 30, 120); // 适中的边距
-        joystickMarginY = joystickMarginX;
+        // PC端：居中
+        joystickX = sceneWidth / 2;
+        joystickY = sceneHeight / 2;
       }
 
-      // 更新摇杆位置（左下角）
-      const joystickX = joystickMarginX;
-      const joystickY = sceneHeight - joystickMarginY;
+      this.mobileJoystick.updatePosition(joystickX, joystickY);
 
-      // 确保摇杆不会超出屏幕边界
-      const finalX = Math.max(joystickRadius, Math.min(joystickX, sceneWidth - joystickRadius));
-      const finalY = Math.max(joystickRadius, Math.min(joystickY, sceneHeight - joystickRadius));
-
-      this.mobileJoystick.updatePosition(finalX, finalY);
-
-      console.log('🎮 摇杆位置已更新:', {
-        x: finalX,
-        y: finalY,
+      console.log('🎮 摇杆位置已更新（仅更新位置，不改变大小）:', {
+        x: joystickX,
+        y: joystickY,
         screenSize: `${sceneWidth}×${sceneHeight}`,
-        joystickRadius: joystickRadius,
         isMobile: this.isMobileMode,
         isLandscape: isLandscape
       });
@@ -907,26 +980,20 @@ export default class GameSceneSlim extends Phaser.Scene {
       this.lastSceneWidth = sceneWidth;
       this.lastSceneHeight = sceneHeight;
 
-      // 重新计算网格配置
-      if (this.gameRenderer) {
-        const updatedConfig = this.gameRenderer.calculateGridConfig();
-        Object.assign(this.gameRenderer.gridConfig, updatedConfig);
-        console.log('🎮 网格配置已更新:', updatedConfig);
-      }
-
-      // 更新游戏控制器的世界边界
+      // 不再重新计算网格配置，保持固定的 viewportGridSize
+      // 只更新游戏控制器的世界边界（如果需要）
       if (this.snakeController) {
         this.snakeController.updateWorldSize();
         console.log('🐍 控制器世界边界已更新');
       }
 
       // 更新食物管理器的生成范围
-      if (this.powerUpManager) {
+      if (this.powerUpManager && typeof this.powerUpManager.updateWorldSize === 'function') {
         this.powerUpManager.updateWorldSize();
         console.log('🍎 食物管理器范围已更新');
       }
 
-      // 更新摇杆位置
+      // 更新摇杆位置（只更新位置，不改变大小）
       this.updateJoystickPosition();
 
       // 如果游戏正在进行，强制重新渲染
@@ -995,22 +1062,73 @@ export default class GameSceneSlim extends Phaser.Scene {
       // 初始化移动端屏幕优化器
       this.screenOptimizer = new MobileScreenOptimizer();
 
-      // 监听屏幕优化事件
-      window.addEventListener('mobileScreenOptimized', (event) => {
+      // 监听屏幕优化事件 - 简化版本，只处理尺寸调整（强制横屏模式）
+      this.handleScreenOptimized = (event) => {
         const { isLandscape, width, height } = event.detail;
         console.log(`📱 屏幕优化: ${isLandscape ? '横屏' : '竖屏'} ${width}×${height}`);
 
-        // 更新游戏渲染器配置
-        if (this.gameRenderer) {
-          const newConfig = this.gameRenderer.gridConfig;
-          // 强制更新网格配置以适应新屏幕尺寸
-          const updatedConfig = this.gameRenderer.calculateGridConfig();
-          Object.assign(newConfig, updatedConfig);
+        // 安全检查：确保场景和游戏对象存在
+        if (!this.sys || !this.sys.game || !this.cameras || !this.cameras.main) {
+          console.warn('⚠️ 场景未就绪，跳过屏幕优化处理');
+          return;
         }
 
-        // 更新摇杆位置
+        // 延迟执行，等待 DOM 更新和 CSS 样式应用完成
+        setTimeout(() => {
+          const canvas = this.sys.game.canvas;
+          if (!canvas) {
+            console.warn('⚠️ Canvas 不存在，跳过尺寸调整');
+            return;
+          }
+
+          const container = canvas.parentElement;
+          if (!container) {
+            console.warn('⚠️ Canvas 容器不存在');
+            return;
+          }
+
+          // 移动端：强制使用窗口尺寸（因为在index.js中已保证容器是全屏的）
+          // 避免读取到错误的容器尺寸（如CSS未完全应用时的默认尺寸）
+          let containerWidth, containerHeight;
+
+          if (this.isMobileMode) {
+            containerWidth = window.innerWidth;
+            containerHeight = window.innerHeight;
+            console.log('📱 移动端：使用窗口尺寸而非容器尺寸', {
+              window: `${window.innerWidth}×${window.innerHeight}`,
+              container: `${container.offsetWidth}×${container.offsetHeight}`
+            });
+          } else {
+            // PC端：使用容器尺寸
+            containerWidth = container.offsetWidth;
+            containerHeight = container.offsetHeight;
+          }
+
+          const currentWidth = this.cameras.main.width;
+          const currentHeight = this.cameras.main.height;
+
+          console.log(`📐 尺寸检查:`, {
+            container: `${containerWidth}×${containerHeight}`,
+            scene: `${currentWidth}×${currentHeight}`,
+            needsResize: Math.abs(containerWidth - currentWidth) > 10 ||
+                        Math.abs(containerHeight - currentHeight) > 10
+          });
+
+          // 如果尺寸不匹配，调整场景尺寸
+          if (Math.abs(containerWidth - currentWidth) > 10 ||
+              Math.abs(containerHeight - currentHeight) > 10) {
+            console.log(`🔄 强制调整场景尺寸: ${currentWidth}×${currentHeight} → ${containerWidth}×${containerHeight}`);
+            this.scale.resize(containerWidth, containerHeight);
+            this.scale.refresh();
+          }
+        }, 150); // 延迟，等待 DOM 完全更新
+
+        // 不再重新计算网格配置，保持初始化时的配置
+        // 只更新摇杆位置
         this.updateJoystickPosition();
-      });
+      };
+
+      window.addEventListener('mobileScreenOptimized', this.handleScreenOptimized);
 
       // 监听窗口大小变化
       this.handleResize = this.handleResize.bind(this);

@@ -22,11 +22,13 @@ function GameContainer() {
   const [showControls, setShowControls] = useState(false); // 移动端控制栏显示状态
   const updateGameRecord = useGameStore((state) => state.updateGameRecord);
 
-  // 检测移动设备和屏幕方向
+  // 检测移动设备和屏幕方向 - 强制横屏模式
   useEffect(() => {
     const checkDeviceState = () => {
       const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
                            window.innerWidth < 768;
+
+      // 移动端强制要求横屏，如果不是横屏则显示提示
       const isLandscapeMode = window.innerWidth > window.innerHeight;
 
       setIsMobile(isMobileDevice);
@@ -35,7 +37,8 @@ function GameContainer() {
       console.log('📱 设备状态更新:', {
         isMobile: isMobileDevice,
         isLandscape: isLandscapeMode,
-        size: `${window.innerWidth}×${window.innerHeight}`
+        size: `${window.innerWidth}×${window.innerHeight}`,
+        mode: isMobileDevice ? (isLandscapeMode ? '强制横屏' : '需要旋转') : '桌面'
       });
     };
 
@@ -69,8 +72,10 @@ function GameContainer() {
 
   // 等待容器渲染后再初始化游戏
   useEffect(() => {
-    // 确保基础条件满足
-    const targetRef = isMobile && isLandscape ? containerRef : landscapeContainerRef;
+    // 移动端：强制横屏，始终使用 containerRef (phaser-game)
+    // 桌面端：使用 landscapeContainerRef (phaser-game-landscape-hidden)
+    const targetRef = isMobile ? containerRef : landscapeContainerRef;
+
     if (isLoading || !gameConfig || !targetRef.current) {
       return;
     }
@@ -94,8 +99,8 @@ function GameContainer() {
           setFinalScore(score);
         };
 
-        // 使用正确的容器ID
-        const containerId = isMobile && isLandscape ? 'phaser-game' : 'phaser-game-landscape-hidden';
+        // 强制横屏：移动端和桌面端都使用 phaser-game 容器
+        const containerId = 'phaser-game';
         gameRef.current = new GameClass(containerId, handleGameOver);
         gameRef.current.start();
 
@@ -121,7 +126,7 @@ function GameContainer() {
         gameRef.current = null;
       }
     };
-  }, [gameId, gameConfig, isLoading, navigate, updateGameRecord]);
+  }, [gameId, gameConfig, isLoading, navigate, updateGameRecord, isMobile]);
 
   const handlePauseResume = () => {
     if (!gameRef.current) return;
@@ -149,7 +154,8 @@ function GameContainer() {
     try {
       const GameClass = await loadGame(gameId);
 
-      const targetRef = isMobile && isLandscape ? containerRef : landscapeContainerRef;
+      // 强制横屏：移动端和桌面端都使用 containerRef
+      const targetRef = isMobile ? containerRef : landscapeContainerRef;
       if (targetRef.current && gameConfig && GameClass) {
         const handleGameOver = (score) => {
           updateGameRecord(gameId, score);
@@ -157,8 +163,8 @@ function GameContainer() {
           setFinalScore(score);
         };
 
-        // 使用正确的容器ID
-        const containerId = isMobile && isLandscape ? 'phaser-game' : 'phaser-game-landscape-hidden';
+        // 强制横屏：都使用 phaser-game 容器
+        const containerId = 'phaser-game';
         gameRef.current = new GameClass(containerId, handleGameOver);
         gameRef.current.start();
       }
@@ -365,10 +371,11 @@ function GameContainer() {
           </div>
         )}
 
-        {/* 横屏模式下的游戏画面 - 全屏体验 */}
-        {isMobile && isLandscape && (
+        {/* 游戏画面 - 统一使用 phaser-game 容器，强制横屏模式 */}
+        {isMobile ? (
+          // 移动端：全屏横屏模式
           <div className="fixed inset-0 z-30 bg-black">
-            {/* 横屏模式下的最小控制按钮 */}
+            {/* 移动端横屏控制按钮 */}
             <button
               onClick={handleExit}
               className="fixed top-2 right-2 z-40 bg-red-600 hover:bg-red-700 text-white
@@ -376,7 +383,6 @@ function GameContainer() {
                        transition-all active:scale-95 shadow-lg"
               title="退出游戏"
               style={{
-                // 确保按钮在安全区域内
                 right: 'env(safe-area-inset-right, 8px)',
                 top: 'env(safe-area-inset-top, 8px)'
               }}
@@ -384,7 +390,6 @@ function GameContainer() {
               <span className="text-xs">❌</span>
             </button>
 
-            {/* 横屏模式下的暂停按钮 */}
             <button
               onClick={handlePauseResume}
               className="fixed top-2 right-12 z-40 bg-game-accent hover:bg-opacity-80 text-white
@@ -392,7 +397,6 @@ function GameContainer() {
                        transition-all active:scale-95 shadow-lg"
               title={isPaused ? '继续' : '暂停'}
               style={{
-                // 确保按钮在安全区域内，并给退出按钮留出空间
                 right: 'env(safe-area-inset-right, 52px)',
                 top: 'env(safe-area-inset-top, 8px)'
               }}
@@ -413,15 +417,13 @@ function GameContainer() {
               }}
             />
           </div>
-        )}
-
-        {/* 竖屏模式下的游戏画面 */}
-        {(!isMobile || !isLandscape) && (
-          <div className={`mt-0 sm:mt-0 ${isMobile ? 'h-[calc(100vh-60px)]' : 'h-screen'}`}>
+        ) : (
+          // 桌面端：正常布局
+          <div className="mt-0 sm:mt-0 h-screen">
             <div
-              id="phaser-game-landscape-hidden"
-              ref={landscapeContainerRef}
-              className={`w-full ${isMobile ? 'h-full' : 'h-screen'}`}
+              id="phaser-game"
+              ref={containerRef}
+              className="w-full h-screen"
               data-game={gameId}
               style={{
                 touchAction: 'none',

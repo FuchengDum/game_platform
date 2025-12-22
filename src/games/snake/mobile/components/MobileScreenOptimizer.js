@@ -113,13 +113,23 @@ export class MobileScreenOptimizer {
     style.href = '/src/styles/mobile-landscape.css';
     document.head.appendChild(style);
 
-    // 优化游戏容器
-    this.gameContainer = document.getElementById('game-container') || document.body;
-    this.gameContainer.style.touchAction = 'none';
-    this.gameContainer.style.userSelect = 'none';
-    this.gameContainer.style.webkitUserSelect = 'none';
-    this.gameContainer.style.webkitTouchCallout = 'none';
-    this.gameContainer.style.webkitTapHighlightColor = 'transparent';
+    // 优化所有可能的游戏容器
+    const containers = [
+      document.getElementById('phaser-game'),
+      document.getElementById('phaser-game-landscape-hidden'),
+      document.getElementById('game-container')
+    ].filter(Boolean);
+
+    containers.forEach(container => {
+      container.style.touchAction = 'none';
+      container.style.userSelect = 'none';
+      container.style.webkitUserSelect = 'none';
+      container.style.webkitTouchCallout = 'none';
+      container.style.webkitTapHighlightColor = 'transparent';
+    });
+
+    // 设置默认容器引用（后续会动态更新）
+    this.gameContainer = containers[0] || document.body;
   }
 
   /**
@@ -212,8 +222,17 @@ export class MobileScreenOptimizer {
    * 调整游戏布局
    */
   adjustGameLayout() {
-    const gameContainer = this.gameContainer;
-    if (!gameContainer) return;
+    // 强制横屏模式：始终使用 phaser-game 容器
+    const targetContainerId = 'phaser-game';
+    const gameContainer = document.getElementById(targetContainerId);
+
+    if (!gameContainer) {
+      console.warn(`⚠️ 目标容器不存在: ${targetContainerId}`);
+      return;
+    }
+
+    // 更新当前容器引用
+    this.gameContainer = gameContainer;
 
     // 发送自定义事件，通知游戏更新布局
     const event = new CustomEvent('mobileScreenOptimized', {
@@ -226,7 +245,7 @@ export class MobileScreenOptimizer {
     });
     window.dispatchEvent(event);
 
-    console.log(`🎮 游戏布局已优化: ${window.innerWidth}×${window.innerHeight}`);
+    console.log(`🎮 游戏布局已优化: ${window.innerWidth}×${window.innerHeight}, 容器: ${targetContainerId}, 模式: 强制横屏`);
   }
 
   /**
