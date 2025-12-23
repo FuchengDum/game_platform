@@ -43,7 +43,19 @@ export class MobileScreenOptimizer {
       return;
     }
 
-    console.log('📱 移动设备检测，启动屏幕优化...');
+    // 检查是否在游戏页面（贪吃蛇游戏）
+    const gameContainer = document.getElementById('phaser-game');
+    const isGamePage = document.body.classList.contains('in-game');
+
+    if (!gameContainer || !isGamePage) {
+      console.log('🏠 未在贪吃蛇游戏页面，跳过横屏优化', {
+        hasGameContainer: !!gameContainer,
+        hasInGameClass: isGamePage
+      });
+      return;
+    }
+
+    console.log('📱 移动设备 + 游戏页面，启动屏幕优化...');
 
     // 创建优化DOM
     this.createLandscapePrompt();

@@ -57,6 +57,35 @@ function GameContainer() {
     };
   }, []);
 
+  // 管理游戏状态 body class - 只在游戏页面激活
+  useEffect(() => {
+    // 组件挂载时标记为游戏状态
+    document.body.classList.add('in-game');
+
+    // 只对贪吃蛇游戏启用横屏控制
+    const isSnakeGame = gameId === 'snake';
+    if (isMobile && isSnakeGame && !isLandscape) {
+      document.body.classList.add('mobile-portrait');
+    }
+
+    console.log('🎮 游戏页面激活,添加 in-game class', { gameId, isSnakeGame });
+
+    return () => {
+      // 组件卸载时清理所有游戏相关的 class
+      document.body.classList.remove('in-game');
+      document.body.classList.remove('mobile-portrait');
+
+      // 清理可能残留的横屏提示
+      const landscapePrompt = document.querySelector('.mobile-landscape-optimization');
+      if (landscapePrompt) {
+        landscapePrompt.remove();
+        console.log('🧹 已清理横屏提示元素');
+      }
+
+      console.log('🚪 游戏页面退出,移除 in-game class');
+    };
+  }, [gameId, isMobile, isLandscape]);
+
   
   // 先加载游戏配置和类
   useEffect(() => {

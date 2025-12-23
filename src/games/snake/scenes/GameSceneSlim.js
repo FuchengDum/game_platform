@@ -270,12 +270,16 @@ export default class GameSceneSlim extends Phaser.Scene {
       Math.max(50, Math.floor(worldArea * 0.008)) : // 移动端：至少50个或0.8%覆盖率
       Math.max(80, Math.floor(worldArea * 0.01)); // 桌面端：至少80个或1%覆盖率
 
-    // 生成食物：在蛇周围和整个世界中均匀分布
+    // 生成食物：参考 slither.io 设计
+    // 一小部分在蛇周围(便于游戏开始),大部分在世界范围均匀分布
     const snake = this.snakeController.getSnake();
     const snakeHead = snake[0];
 
-    // 一部分食物在蛇周围生成（确保游戏开始时就能吃到）
-    const nearbyFoodCount = Math.floor(initialFoodCount * 0.3); // 30%的食物在蛇周围
+    // 调整食物分布比例:20%在蛇周围,80%在世界分布
+    const nearbyFoodCount = Math.floor(initialFoodCount * 0.2);  // 20%在蛇周围
+    const worldFoodCount = initialFoodCount - nearbyFoodCount;   // 80%在世界分布
+
+    // 蛇周围食物生成
     for (let i = 0; i < nearbyFoodCount; i++) {
       const nearbyFood = this.spawnFoodNearSnake(snakeHead, snake);
       if (nearbyFood) {
@@ -283,8 +287,7 @@ export default class GameSceneSlim extends Phaser.Scene {
       }
     }
 
-    // 剩余食物在整个世界中均匀分布
-    const worldFoodCount = initialFoodCount - nearbyFoodCount;
+    // 世界范围食物生成 - 在整个200x200世界均匀分布
     for (let i = 0; i < worldFoodCount; i++) {
       const food = this.powerUpManager.spawnFood(
         snake,
@@ -296,7 +299,7 @@ export default class GameSceneSlim extends Phaser.Scene {
     }
 
     console.log(`🍽️ 初始化完成：世界 ${worldGridSize}×${worldGridSize}，视口 ${gridConfig.gridCount}×${gridConfig.gridCount}`);
-    console.log(`🍎 生成了 ${this.activeFoodItems.size} 个食物（其中 ${Math.floor(initialFoodCount * 0.3)} 个在蛇周围）`);
+    console.log(`🍎 生成了 ${this.activeFoodItems.size} 个食物（其中 ${nearbyFoodCount} 个在蛇周围，${worldFoodCount} 个在世界分布）`);
     console.log(`📊 食物覆盖率：${((this.activeFoodItems.size / worldArea) * 100).toFixed(2)}%`);
 
     // 设置控制 - 所有设备都使用虚拟摇杆控制
