@@ -18,6 +18,19 @@ function Home() {
     console.log('📁 Categories:', allCategories);
     setGames(allGames);
     setCategories(['all', ...allCategories]);
+
+    // 确保游戏大厅页面处于干净状态
+    // 清理所有可能残留的游戏相关 class 和元素
+    document.body.classList.remove('in-game', 'mobile-portrait');
+
+    // 清理可能残留的横屏提示
+    const landscapePrompt = document.querySelector('.mobile-landscape-optimization');
+    if (landscapePrompt) {
+      landscapePrompt.remove();
+      console.log('🧹 大厅页面: 已清理残留的横屏提示');
+    }
+
+    console.log('🏠 游戏大厅页面已初始化,确保竖屏正常');
   }, []);
 
   // 过滤游戏

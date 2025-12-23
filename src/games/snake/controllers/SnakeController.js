@@ -53,37 +53,39 @@ export class SnakeController {
    * 初始化蛇
    */
   init() {
-    // 根据视口网格大小设置蛇的初始位置（让蛇出现在视口中心）
-    // 而不是世界中心，避免蛇出现在视口外
-    const viewportGridSize = this.gridConfig.viewportGridSize || this.gridConfig.gridCount || 25;
-    const centerX = Math.floor(viewportGridSize / 2);
-    const centerY = Math.floor(viewportGridSize / 2);
+    // 蛇出生在世界中心,而不是视口中心
+    // 参考 slither.io 设计:蛇出生在大世界中心,摄像机聚焦于蛇
+    const worldGridSize = this.gridConfig.worldGridSize || this.gridConfig.gridCount || 200;
+    const centerX = Math.floor(worldGridSize / 2);  // 世界中心: 100
+    const centerY = Math.floor(worldGridSize / 2);  // 世界中心: 100
 
     this.snake = [
       { x: centerX, y: centerY },
       { x: centerX - 1, y: centerY },
       { x: centerX - 2, y: centerY }
     ];
-    this.direction = 'RIGHT';
-    this.nextDirection = 'RIGHT';
+
+    // 初始方向改为向上,避免向左移出边界
+    this.direction = 'UP';
+    this.nextDirection = 'UP';
     this.moveDelay = 120;
     this.baseMoveDelay = 120;
     this.foodCount = 0;
     this.speedLevel = 1;
     this.moveTime = 0;
 
-    console.log('🐍 蛇初始化位置:', {
+    console.log('🐍 蛇初始化位置(世界中心):', {
       世界大小: `${this.gridWidth}×${this.gridHeight}`,
-      视口大小: `${viewportGridSize}×${viewportGridSize}`,
       初始位置: `(${centerX}, ${centerY})`,
-      完整蛇身: this.snake.map(s => `(${s.x}, ${s.y})`).join(', ')
+      完整蛇身: this.snake.map(s => `(${s.x}, ${s.y})`).join(', '),
+      初始方向: 'UP'
     });
 
     // 初始化360度移动状态
     this.is360Mode = false;
     this.directionVector = { x: 1, y: 0, magnitude: 0, angle: 0 };
     this.targetDirectionVector = { x: 1, y: 0, magnitude: 0, angle: 0 };
-    this.lastGridDirection = 'RIGHT';
+    this.lastGridDirection = 'UP';
     this.moveHistory = [];
 
     // 重置特殊效果
@@ -146,7 +148,24 @@ export class SnakeController {
    */
   checkWallCollision(gridWidth = this.gridWidth, gridHeight = this.gridHeight) {
     const head = this.snake[0];
-    return head.x < 0 || head.x >= gridWidth || head.y < 0 || head.y >= gridHeight;
+
+    // 详细日志:帮助调试边界碰撞问题
+    if (head.x < 0 || head.x >= gridWidth || head.y < 0 || head.y >= gridHeight) {
+      console.warn('🚧 墙壁碰撞检测:', {
+        蛇头位置: `(${head.x}, ${head.y})`,
+        世界大小: `${gridWidth}×${gridHeight}`,
+        有效坐标: `X: 0-${gridWidth - 1}, Y: 0-${gridHeight - 1}`,
+        碰撞原因: [
+          head.x < 0 ? 'X坐标小于0(左边界)' : null,
+          head.x >= gridWidth ? `X坐标大于等于${gridWidth}(右边界)` : null,
+          head.y < 0 ? 'Y坐标小于0(上边界)' : null,
+          head.y >= gridHeight ? `Y坐标大于等于${gridHeight}(下边界)` : null
+        ].filter(Boolean).join(' 或 ')
+      });
+      return true;
+    }
+
+    return false;
   }
 
   /**

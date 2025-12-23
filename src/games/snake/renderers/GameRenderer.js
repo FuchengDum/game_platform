@@ -28,7 +28,8 @@ export class GameRenderer {
    */
   calculateGridConfig() {
     // 游戏世界大小（实际游戏逻辑使用的网格）
-    const worldGridSize = 200; // 200x200的巨大世界
+    // 优化:从200改为100,更适合移动端
+    const worldGridSize = 100; // 100x100的世界(原200x200太大)
 
     // 视口大小（屏幕上显示的网格区域）- 固定值
     let viewportGridSize;
@@ -37,7 +38,7 @@ export class GameRenderer {
       viewportGridSize = 25; // 移动端固定25x25网格
       console.log('🎮 移动端网格配置（固定）:', { viewportGridSize, worldGridSize });
     } else {
-      viewportGridSize = 80; // PC端固定80x80网格
+      viewportGridSize = 50; // PC端从80改为50,匹配更小的世界
       console.log('🖥️ PC端网格配置（固定）:', { viewportGridSize, worldGridSize });
     }
 
@@ -134,10 +135,16 @@ export class GameRenderer {
     const sceneWidth = this.scene.cameras.main.width;
     const sceneHeight = this.scene.cameras.main.height;
 
+    // 获取网格配置
+    const worldGridSize = this.gridConfig.worldGridSize;
+    const viewportGridSize = this.gridConfig.viewportGridSize;
+
     console.log('🎮 GameRenderer: 最终场景尺寸', {
       sceneWidth,
       sceneHeight,
-      isLandscape: sceneWidth > sceneHeight
+      isLandscape: sceneWidth > sceneHeight,
+      worldGridSize,
+      viewportGridSize
     });
 
     // 计算游戏区域尺寸（根据设备类型优化布局）
@@ -156,16 +163,18 @@ export class GameRenderer {
           gameSize: gameSize
         });
       } else {
-        // 竖屏模式：使用较小的维度确保完整显示
-        gameSize = Math.min(sceneWidth, sceneHeight);
-        console.log('📱 竖屏模式：使用较小维度', {
+        // 竖屏模式：使用屏幕宽度（而不是较小边），确保边界框贴合
+        // 这样可以让边界框充满整个屏幕宽度
+        gameSize = sceneWidth;  // 直接使用屏幕宽度
+        console.log('📱 竖屏模式：使用屏幕宽度', {
           width: sceneWidth,
           height: sceneHeight,
           gameSize: gameSize
         });
       }
 
-      gameSize = Math.max(300, gameSize);
+      // 移动端不再限制最小值，让边界框完全贴合屏幕
+      // gameSize = Math.max(300, gameSize);  // 注释掉这行限制
     } else {
       padding = 10;
       const availableSize = Math.min(sceneWidth, sceneHeight) - (padding * 2);
@@ -175,24 +184,18 @@ export class GameRenderer {
     // 计算游戏区域的偏移量
     let offsetX, offsetY;
     if (this.isMobile) {
-      const isLandscape = sceneWidth > sceneHeight;
+      // 移动端:边界框直接从屏幕左上角开始,消除所有空白
+      // 让游戏世界充满整个移动端屏幕,类似 slither.io
+      offsetX = 0;  // 直接从左边缘开始,消除左侧空白
+      offsetY = 0;  // 直接从上边缘开始,消除顶部空白
 
-      if (isLandscape) {
-        // 横屏模式：游戏区域居中（因为gameSize使用较小边）
-        offsetX = (sceneWidth - gameSize) / 2;
-        offsetY = (sceneHeight - gameSize) / 2;
-        console.log('📱 横屏偏移量：游戏区域居中', {
-          offsetX: offsetX,
-          offsetY: offsetY,
-          sceneWidth: sceneWidth,
-          sceneHeight: sceneHeight,
-          gameSize: gameSize
-        });
-      } else {
-        // 竖屏模式：横向居中，纵向填满
-        offsetX = (sceneWidth - gameSize) / 2;
-        offsetY = (sceneHeight - gameSize) / 2;
-      }
+      console.log('📱 移动端偏移量：边界框贴合屏幕边缘', {
+        offsetX: offsetX,
+        offsetY: offsetY,
+        sceneWidth: sceneWidth,
+        sceneHeight: sceneHeight,
+        gameSize: gameSize
+      });
     } else {
       // PC端：完全居中布局
       offsetX = (sceneWidth - gameSize) / 2;
@@ -225,7 +228,7 @@ export class GameRenderer {
     }
 
     // 使用视口网格配置进行渲染
-    const viewportGridSize = this.gridConfig.viewportGridSize;
+    // viewportGridSize 和 worldGridSize 已在方法开头定义
     const gridSize = gameSize / viewportGridSize;
 
     // 移动端和PC端使用固定的元素大小比例
@@ -255,22 +258,43 @@ export class GameRenderer {
       });
     }
 
-    // 绘制视口内的网格线
+    // 绘制可见区域的网格线(视口裁剪)
+    // 计算摄像机可见的世界网格范围
+    const startGridX = Math.max(0, Math.floor((-cameraOffsetX) / gridSize));
+    const endGridX = Math.min(worldGridSize, Math.ceil((sceneWidth - cameraOffsetX) / gridSize));
+    const startGridY = Math.max(0, Math.floor((-cameraOffsetY) / gridSize));
+    const endGridY = Math.min(worldGridSize, Math.ceil((sceneHeight - cameraOffsetY) / gridSize));
+
     // 应用摄像头偏移量：绘制坐标 = 游戏区域偏移 + 摄像头偏移
     this.graphics.lineStyle(1, 0x2a2a4e, 0.3);
-    for (let i = 0; i <= viewportGridSize; i++) {
+
+    // 只渲染可见范围内的垂直网格线
+    for (let i = startGridX; i <= endGridX; i++) {
       const x = offsetX + cameraOffsetX + i * gridSize;
       this.graphics.beginPath();
       this.graphics.moveTo(x, offsetY + cameraOffsetY);
       this.graphics.lineTo(x, offsetY + cameraOffsetY + gameSize);
       this.graphics.strokePath();
+    }
 
+    // 只渲染可见范围内的水平网格线
+    for (let i = startGridY; i <= endGridY; i++) {
       const y = offsetY + cameraOffsetY + i * gridSize;
       this.graphics.beginPath();
       this.graphics.moveTo(offsetX + cameraOffsetX, y);
       this.graphics.lineTo(offsetX + cameraOffsetX + gameSize, y);
       this.graphics.strokePath();
     }
+
+    // 绘制世界边界 - 让用户知道游戏世界的范围
+    const worldPixelSize = worldGridSize * gridSize;
+    this.graphics.lineStyle(2, 0xff4444, 0.6); // 红色半透明边界
+    this.graphics.strokeRect(
+      offsetX + cameraOffsetX,
+      offsetY + cameraOffsetY,
+      worldPixelSize,
+      worldPixelSize
+    );
 
     // 更新绘制函数以使用居中坐标 + 摄像头偏移
     this.drawSnakeCentered(snake, isBlinking, offsetX + cameraOffsetX, offsetY + cameraOffsetY, gridSize, baseSnakeSize);
